@@ -28,8 +28,8 @@ export function RoomActions({ roomId, hasActiveTenant }: Props) {
       return
     }
     toast.success('Đã xóa phòng')
-    router.push('/rooms')
     router.refresh()
+    router.push('/rooms')
   }
 
   return (

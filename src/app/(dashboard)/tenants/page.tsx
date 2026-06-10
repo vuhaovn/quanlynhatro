@@ -48,9 +48,9 @@ export default async function TenantsPage() {
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
                 Đang thuê ({active.length})
               </p>
-              <div className="space-y-2">
+              <div className="space-y-3">
                 {active.map((tenant) => (
-                  <Link key={tenant.id} href={`/tenants/${tenant.id}`}>
+                  <Link key={tenant.id} href={`/tenants/${tenant.id}`} className="block">
                     <Card className="hover:shadow-md transition-shadow cursor-pointer">
                       <CardContent className="px-4 py-3 flex items-center justify-between">
                         <div>
@@ -75,9 +75,9 @@ export default async function TenantsPage() {
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
                 Đã rời ({inactive.length})
               </p>
-              <div className="space-y-2">
+              <div className="space-y-3">
                 {inactive.map((tenant) => (
-                  <Link key={tenant.id} href={`/tenants/${tenant.id}`}>
+                  <Link key={tenant.id} href={`/tenants/${tenant.id}`} className="block">
                     <Card className="hover:shadow-md transition-shadow cursor-pointer opacity-60">
                       <CardContent className="px-4 py-3 flex items-center justify-between">
                         <div>

@@ -53,8 +53,8 @@ export function InvoiceActions({ invoice }: Pick<Props, 'invoice'>) {
     const { error } = await supabase.from('invoices').delete().eq('id', invoice.id)
     if (error) { toast.error('Xóa thất bại: ' + error.message); setLoading(false); return }
     toast.success('Đã xóa hóa đơn')
-    router.push('/invoices')
     router.refresh()
+    router.push('/invoices')
   }
 
   return (

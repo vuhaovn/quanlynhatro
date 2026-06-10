@@ -34,19 +34,19 @@ export default async function RoomsPage() {
           </Link>
         </div>
       ) : (
-        <div className="space-y-2">
+        <div className="space-y-3">
           {rooms.map((room) => (
-            <Link key={room.id} href={`/rooms/${room.id}`}>
+            <Link key={room.id} href={`/rooms/${room.id}`} className="block">
               <Card className="hover:shadow-md transition-shadow cursor-pointer">
-                <CardContent className="px-4 py-3 flex items-center justify-between">
-                  <div>
-                    <p className="font-semibold">{room.name}</p>
-                    <p className="text-xs text-muted-foreground">
+                <CardContent className="px-4 py-4 flex items-center justify-between gap-4">
+                  <div className="min-w-0 flex-1">
+                    <p className="font-semibold text-base">{room.name}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
                       {room.floor ? `Tầng ${room.floor}` : 'Chưa có tầng'}
                       {room.description ? ` · ${room.description}` : ''}
                     </p>
                   </div>
-                  <div className="text-right space-y-1">
+                  <div className="text-right shrink-0 space-y-1.5">
                     <p className="text-sm font-medium">{room.price.toLocaleString('vi-VN')}đ/tháng</p>
                     <Badge
                       variant={room.status === 'rented' ? 'default' : 'outline'}

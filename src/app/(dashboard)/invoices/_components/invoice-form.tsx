@@ -143,8 +143,8 @@ export function InvoiceForm({ rooms, settings }: Props) {
     }
 
     toast.success('Đã tạo hóa đơn')
-    router.push('/invoices')
     router.refresh()
+    router.push('/invoices')
   }
 
   return (

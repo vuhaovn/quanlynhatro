@@ -14,9 +14,15 @@ import { z } from 'zod'
 const schema = z.object({
   name: z.string().min(1, 'Tên phòng không được để trống'),
   floor: z.preprocess((v) => (v === '' || v === null ? null : Number(v)), z.number().int().nullable()),
-  price: z.preprocess((v) => Number(v), z.number().positive('Giá thuê phải lớn hơn 0')),
+  price: z.preprocess((v) => Number(String(v).replace(/,/g, '')), z.number().positive('Giá thuê phải lớn hơn 0')),
   description: z.string().nullable(),
 })
+
+function formatVND(raw: string): string {
+  const digits = raw.replace(/\D/g, '')
+  if (!digits) return ''
+  return digits.replace(/\B(?=(\d{3})+(?!\d))/g, ',')
+}
 
 interface Props {
   room?: Room
@@ -28,7 +34,7 @@ export function RoomForm({ room }: Props) {
   const [form, setForm] = useState({
     name: room?.name ?? '',
     floor: room?.floor?.toString() ?? '',
-    price: room?.price?.toString() ?? '',
+    price: room?.price ? formatVND(room.price.toString()) : '',
     description: room?.description ?? '',
   })
 
@@ -62,8 +68,12 @@ export function RoomForm({ room }: Props) {
       toast.success('Đã thêm phòng')
     }
 
-    router.push('/rooms')
     router.refresh()
+    router.push('/rooms')
+  }
+
+  function handlePriceChange(e: React.ChangeEvent<HTMLInputElement>) {
+    setForm({ ...form, price: formatVND(e.target.value) })
   }
 
   return (
@@ -93,15 +103,19 @@ export function RoomForm({ room }: Props) {
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="price">Giá thuê/tháng *</Label>
-          <Input
-            id="price"
-            type="number"
-            placeholder="VD: 2000000"
-            value={form.price}
-            onChange={(e) => setForm({ ...form, price: e.target.value })}
-            min={0}
-            required
-          />
+          <div className="relative">
+            <Input
+              id="price"
+              type="text"
+              inputMode="numeric"
+              placeholder="VD: 2,000,000"
+              value={form.price}
+              onChange={handlePriceChange}
+              className="pr-7"
+              required
+            />
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm pointer-events-none">đ</span>
+          </div>
         </div>
       </div>
 

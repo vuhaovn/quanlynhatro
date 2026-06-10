@@ -19,6 +19,7 @@ export interface Tenant {
   start_date: string
   end_date: string | null
   is_active: boolean
+  deposit: number
   created_at: string
   room?: Room
 }
