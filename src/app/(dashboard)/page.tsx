@@ -29,8 +29,8 @@ export default async function DashboardPage() {
 
       {/* Stats grid */}
       <div className="grid grid-cols-2 gap-3">
-        <Link href="/rooms">
-          <Card className="hover:shadow-md transition-shadow cursor-pointer">
+        <Link href="/rooms" className="block h-full">
+          <Card className="hover:shadow-md transition-shadow cursor-pointer h-full">
             <CardHeader className="pb-1 pt-4 px-4">
               <CardTitle className="text-xs text-muted-foreground font-medium flex items-center gap-1.5">
                 <DoorOpen className="h-3.5 w-3.5" />
@@ -39,12 +39,13 @@ export default async function DashboardPage() {
             </CardHeader>
             <CardContent className="px-4 pb-4">
               <p className="text-2xl font-bold">{totalRooms}</p>
+              <p className="text-xs text-muted-foreground">{emptyRooms} phòng trống</p>
             </CardContent>
           </Card>
         </Link>
 
-        <Link href="/rooms">
-          <Card className="hover:shadow-md transition-shadow cursor-pointer">
+        <Link href="/rooms" className="block h-full">
+          <Card className="hover:shadow-md transition-shadow cursor-pointer h-full">
             <CardHeader className="pb-1 pt-4 px-4">
               <CardTitle className="text-xs text-muted-foreground font-medium flex items-center gap-1.5">
                 <Users className="h-3.5 w-3.5" />

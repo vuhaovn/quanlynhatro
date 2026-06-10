@@ -20,6 +20,8 @@ const schema = z.object({
   month: z.number().int().min(1).max(12),
   year: z.number().int().min(2020),
   room_price: z.number().positive(),
+  garbage_fee: z.preprocess(Number, z.number().min(0)),
+  internet_fee: z.preprocess(Number, z.number().min(0)),
   electric_start: z.preprocess(Number, z.number().min(0)),
   electric_end: z.preprocess(Number, z.number().min(0)),
   electric_price: z.preprocess(Number, z.number().positive()),
@@ -62,6 +64,8 @@ export function InvoiceForm({ rooms, settings }: Props) {
     month: now.getMonth() + 1,
     year: now.getFullYear(),
     room_price: 0,
+    garbage_fee: settings?.garbage_fee ?? 0,
+    internet_fee: settings?.internet_fee ?? 0,
     electric_start: '',
     electric_end: '',
     electric_price: settings?.electric_price?.toString() ?? '3500',
@@ -79,6 +83,8 @@ export function InvoiceForm({ rooms, settings }: Props) {
     setForm((prev) => ({
       ...prev,
       room_price: room.price,
+      garbage_fee: settings?.garbage_fee ?? 0,
+      internet_fee: settings?.internet_fee ?? 0,
       tenant_id: room.tenant?.id ?? '',
     }))
   }, [form.room_id, rooms])
@@ -87,7 +93,7 @@ export function InvoiceForm({ rooms, settings }: Props) {
   const waterUsage = Math.max(0, Number(form.water_end) - Number(form.water_start))
   const electricTotal = Math.round(electricUsage * Number(form.electric_price))
   const waterTotal = Math.round(waterUsage * Number(form.water_price))
-  const grandTotal = form.room_price + electricTotal + waterTotal
+  const grandTotal = form.room_price + electricTotal + waterTotal + form.garbage_fee + form.internet_fee
 
   const selectedRoom = rooms.find((r) => r.id === form.room_id)
 
@@ -115,8 +121,10 @@ export function InvoiceForm({ rooms, settings }: Props) {
 
     setLoading(true)
     const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
 
     const { error } = await supabase.from('invoices').insert({
+      user_id: user!.id,
       room_id: result.data.room_id,
       tenant_id: result.data.tenant_id,
       month: result.data.month,
@@ -128,6 +136,8 @@ export function InvoiceForm({ rooms, settings }: Props) {
       water_start: result.data.water_start,
       water_end: result.data.water_end,
       water_price: result.data.water_price,
+      garbage_fee: result.data.garbage_fee,
+      internet_fee: result.data.internet_fee,
       note: form.note || null,
       is_paid: false,
     })
@@ -309,6 +319,39 @@ export function InvoiceForm({ rooms, settings }: Props) {
 
       <Separator />
 
+      <Separator />
+
+      {/* Garbage & Internet */}
+      <div className="space-y-2">
+        <p className="text-sm font-medium">🗑️ Phí dịch vụ</p>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="garbage_fee">Tiền rác</Label>
+            <Input
+              id="garbage_fee"
+              type="number"
+              placeholder="0"
+              value={form.garbage_fee}
+              onChange={(e) => setForm({ ...form, garbage_fee: Number(e.target.value) })}
+              min={0}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="internet_fee">Cáp mạng</Label>
+            <Input
+              id="internet_fee"
+              type="number"
+              placeholder="0"
+              value={form.internet_fee}
+              onChange={(e) => setForm({ ...form, internet_fee: Number(e.target.value) })}
+              min={0}
+            />
+          </div>
+        </div>
+      </div>
+
+      <Separator />
+
       {/* Total preview */}
       <Card className="bg-gray-50">
         <CardContent className="px-4 py-3 space-y-1.5">
@@ -324,6 +367,18 @@ export function InvoiceForm({ rooms, settings }: Props) {
             <span className="text-muted-foreground">Tiền nước</span>
             <span>{waterTotal.toLocaleString('vi-VN')}đ</span>
           </div>
+          {form.garbage_fee > 0 && (
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Tiền rác</span>
+              <span>{form.garbage_fee.toLocaleString('vi-VN')}đ</span>
+            </div>
+          )}
+          {form.internet_fee > 0 && (
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Cáp mạng</span>
+              <span>{form.internet_fee.toLocaleString('vi-VN')}đ</span>
+            </div>
+          )}
           <Separator />
           <div className="flex justify-between font-bold">
             <span>Tổng cộng</span>

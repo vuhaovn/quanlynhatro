@@ -12,6 +12,8 @@ import { z } from 'zod'
 const settingsSchema = z.object({
   electric_price: z.number().positive('Giá điện phải lớn hơn 0'),
   water_price: z.number().positive('Giá nước phải lớn hơn 0'),
+  garbage_fee: z.number().min(0),
+  internet_fee: z.number().min(0),
   bank_name: z.string().optional(),
   bank_account: z.string().optional(),
   bank_owner: z.string().optional(),
@@ -22,6 +24,8 @@ export function SettingsForm({ settings }: { settings: Settings | null }) {
   const [form, setForm] = useState({
     electric_price: settings?.electric_price ?? 3500,
     water_price: settings?.water_price ?? 15000,
+    garbage_fee: settings?.garbage_fee ?? 0,
+    internet_fee: settings?.internet_fee ?? 0,
     bank_name: settings?.bank_name ?? '',
     bank_account: settings?.bank_account ?? '',
     bank_owner: settings?.bank_owner ?? '',
@@ -46,17 +50,17 @@ export function SettingsForm({ settings }: { settings: Settings | null }) {
     const payload = {
       electric_price: result.data.electric_price,
       water_price: result.data.water_price,
+      garbage_fee: result.data.garbage_fee,
+      internet_fee: result.data.internet_fee,
       bank_name: form.bank_name || null,
       bank_account: form.bank_account || null,
       bank_owner: form.bank_owner || null,
     }
 
-    let error
-    if (settings?.id) {
-      ;({ error } = await supabase.from('settings').update(payload).eq('id', settings.id))
-    } else {
-      ;({ error } = await supabase.from('settings').insert(payload))
-    }
+    const { data: { user } } = await supabase.auth.getUser()
+    const { error } = await supabase
+      .from('settings')
+      .upsert({ ...payload, user_id: user!.id }, { onConflict: 'user_id' })
 
     if (error) {
       toast.error('Lưu thất bại: ' + error.message)
@@ -86,6 +90,29 @@ export function SettingsForm({ settings }: { settings: Settings | null }) {
             type="number"
             value={form.water_price}
             onChange={(e) => setForm({ ...form, water_price: Number(e.target.value) })}
+            min={0}
+          />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1.5">
+          <Label htmlFor="garbage_fee">Tiền rác (đ/tháng)</Label>
+          <Input
+            id="garbage_fee"
+            type="number"
+            value={form.garbage_fee}
+            onChange={(e) => setForm({ ...form, garbage_fee: Number(e.target.value) })}
+            min={0}
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="internet_fee">Cáp mạng (đ/tháng)</Label>
+          <Input
+            id="internet_fee"
+            type="number"
+            value={form.internet_fee}
+            onChange={(e) => setForm({ ...form, internet_fee: Number(e.target.value) })}
             min={0}
           />
         </div>

@@ -2,6 +2,7 @@ export type RoomStatus = 'empty' | 'rented'
 
 export interface Room {
   id: string
+  user_id: string
   name: string
   floor: number | null
   price: number
@@ -12,6 +13,7 @@ export interface Room {
 
 export interface Tenant {
   id: string
+  user_id: string
   full_name: string
   phone: string
   cccd: string
@@ -26,6 +28,7 @@ export interface Tenant {
 
 export interface Invoice {
   id: string
+  user_id: string
   room_id: string
   tenant_id: string
   month: number
@@ -39,6 +42,8 @@ export interface Invoice {
   water_end: number
   water_price: number
   water_total: number
+  garbage_fee: number
+  internet_fee: number
   total_amount: number
   is_paid: boolean
   paid_at: string | null
@@ -50,6 +55,7 @@ export interface Invoice {
 
 export interface RentalHistory {
   id: string
+  user_id: string
   room_id: string
   tenant_name: string
   tenant_phone: string
@@ -62,8 +68,11 @@ export interface RentalHistory {
 
 export interface Settings {
   id: string
+  user_id: string
   electric_price: number
   water_price: number
+  garbage_fee: number
+  internet_fee: number
   bank_name: string | null
   bank_account: string | null
   bank_owner: string | null

@@ -2,11 +2,12 @@ import { createClient } from '@/lib/supabase/server'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Settings } from 'lucide-react'
 import { SettingsForm } from './settings-form'
+import { LogoutButton } from './logout-button'
 import { Settings as SettingsType } from '@/types/database'
 
 export default async function SettingsPage() {
   const supabase = await createClient()
-  const { data } = await supabase.from('settings').select('*').single()
+  const { data } = await supabase.from('settings').select('*').maybeSingle()
   const settings = data as SettingsType | null
 
   return (
@@ -22,6 +23,12 @@ export default async function SettingsPage() {
         </CardHeader>
         <CardContent className="px-4 pb-4">
           <SettingsForm settings={settings} />
+        </CardContent>
+      </Card>
+
+      <Card className="md:hidden">
+        <CardContent className="px-4 py-3">
+          <LogoutButton />
         </CardContent>
       </Card>
     </div>

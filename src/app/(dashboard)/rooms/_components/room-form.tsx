@@ -24,6 +24,7 @@ function formatVND(raw: string): string {
   return digits.replace(/\B(?=(\d{3})+(?!\d))/g, ',')
 }
 
+
 interface Props {
   room?: Room
 }
@@ -63,17 +64,14 @@ export function RoomForm({ room }: Props) {
       if (error) { toast.error('Lỗi: ' + error.message); setLoading(false); return }
       toast.success('Đã cập nhật phòng')
     } else {
-      const { error } = await supabase.from('rooms').insert({ ...payload, status: 'empty' })
+      const { data: { user } } = await supabase.auth.getUser()
+      const { error } = await supabase.from('rooms').insert({ ...payload, status: 'empty', user_id: user!.id })
       if (error) { toast.error('Lỗi: ' + error.message); setLoading(false); return }
       toast.success('Đã thêm phòng')
     }
 
     router.refresh()
     router.push('/rooms')
-  }
-
-  function handlePriceChange(e: React.ChangeEvent<HTMLInputElement>) {
-    setForm({ ...form, price: formatVND(e.target.value) })
   }
 
   return (
@@ -110,7 +108,7 @@ export function RoomForm({ room }: Props) {
               inputMode="numeric"
               placeholder="VD: 2,000,000"
               value={form.price}
-              onChange={handlePriceChange}
+              onChange={(e) => setForm({ ...form, price: formatVND(e.target.value) })}
               className="pr-7"
               required
             />

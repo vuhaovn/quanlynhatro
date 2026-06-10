@@ -143,7 +143,8 @@ export function TenantForm({ tenant, rooms }: Props) {
       }
       toast.success(tenant.is_active ? 'Đã cập nhật thông tin' : 'Đã tái kích hoạt người thuê')
     } else {
-      const { error } = await supabase.from('tenants').insert({ ...payload, is_active: true })
+      const { data: { user } } = await supabase.auth.getUser()
+      const { error } = await supabase.from('tenants').insert({ ...payload, is_active: true, user_id: user!.id })
       if (error) { toast.error('Lỗi: ' + error.message); setLoading(false); return }
       if (payload.room_id) {
         await supabase.from('rooms').update({ status: 'rented' }).eq('id', payload.room_id)

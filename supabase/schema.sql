@@ -1,6 +1,7 @@
 -- Phòng trọ
 create table if not exists rooms (
   id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
   name text not null,
   floor integer,
   price numeric(12,0) not null,
@@ -12,6 +13,7 @@ create table if not exists rooms (
 -- Người thuê
 create table if not exists tenants (
   id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
   full_name text not null,
   phone text not null,
   cccd text not null,
@@ -19,12 +21,14 @@ create table if not exists tenants (
   start_date date not null,
   end_date date,
   is_active boolean not null default true,
+  deposit numeric(12,0) not null default 0,
   created_at timestamptz not null default now()
 );
 
 -- Hóa đơn tháng
 create table if not exists invoices (
   id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
   room_id uuid not null references rooms(id) on delete cascade,
   tenant_id uuid not null references tenants(id) on delete cascade,
   month integer not null check (month between 1 and 12),
@@ -42,10 +46,13 @@ create table if not exists invoices (
   water_total numeric(12,0) not null generated always as (
     round((water_end - water_start) * water_price)
   ) stored,
+  garbage_fee numeric(12,0) not null default 0,
+  internet_fee numeric(12,0) not null default 0,
   total_amount numeric(12,0) not null generated always as (
     room_price +
     round((electric_end - electric_start) * electric_price) +
-    round((water_end - water_start) * water_price)
+    round((water_end - water_start) * water_price) +
+    garbage_fee + internet_fee
   ) stored,
   is_paid boolean not null default false,
   paid_at timestamptz,
@@ -57,6 +64,7 @@ create table if not exists invoices (
 -- Lịch sử thuê phòng
 create table if not exists rental_history (
   id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
   room_id uuid not null references rooms(id) on delete cascade,
   tenant_name text not null,
   tenant_phone text not null,
@@ -66,22 +74,20 @@ create table if not exists rental_history (
   created_at timestamptz not null default now()
 );
 
--- Cài đặt chung (single row)
+-- Cài đặt chung (mỗi user 1 row)
 create table if not exists settings (
   id uuid primary key default gen_random_uuid(),
+  user_id uuid unique references auth.users(id) on delete cascade,
   electric_price numeric(10,0) not null default 3500,
   water_price numeric(10,0) not null default 15000,
+  garbage_fee numeric(12,0) not null default 0,
+  internet_fee numeric(12,0) not null default 0,
   bank_name text,
   bank_account text,
   bank_owner text,
   qr_image_url text,
   updated_at timestamptz not null default now()
 );
-
--- Insert default settings row
-insert into settings (electric_price, water_price)
-values (3500, 15000)
-on conflict do nothing;
 
 -- RLS
 alter table rooms enable row level security;
@@ -90,9 +96,9 @@ alter table invoices enable row level security;
 alter table rental_history enable row level security;
 alter table settings enable row level security;
 
--- Policies: chỉ cho phép authenticated user (admin)
-create policy "auth_all" on rooms for all to authenticated using (true) with check (true);
-create policy "auth_all" on tenants for all to authenticated using (true) with check (true);
-create policy "auth_all" on invoices for all to authenticated using (true) with check (true);
-create policy "auth_all" on rental_history for all to authenticated using (true) with check (true);
-create policy "auth_all" on settings for all to authenticated using (true) with check (true);
+-- Policies: mỗi user chỉ thấy data của mình
+create policy "owner_all" on rooms for all to authenticated using (user_id = auth.uid()) with check (user_id = auth.uid());
+create policy "owner_all" on tenants for all to authenticated using (user_id = auth.uid()) with check (user_id = auth.uid());
+create policy "owner_all" on invoices for all to authenticated using (user_id = auth.uid()) with check (user_id = auth.uid());
+create policy "owner_all" on rental_history for all to authenticated using (user_id = auth.uid()) with check (user_id = auth.uid());
+create policy "owner_all" on settings for all to authenticated using (user_id = auth.uid()) with check (user_id = auth.uid());

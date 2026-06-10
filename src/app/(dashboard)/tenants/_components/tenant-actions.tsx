@@ -39,7 +39,9 @@ export function TenantActions({ tenant }: Props) {
     setLoading(true)
     const supabase = createClient()
 
+    const { data: { user } } = await supabase.auth.getUser()
     const { error: historyError } = await supabase.from('rental_history').insert({
+      user_id: user!.id,
       room_id: tenant.room_id!,
       tenant_name: tenant.full_name,
       tenant_phone: tenant.phone,
