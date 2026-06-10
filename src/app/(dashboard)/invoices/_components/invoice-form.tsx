@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select'
 import { Card, CardContent } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
 import { toast } from 'sonner'
@@ -154,8 +154,12 @@ export function InvoiceForm({ rooms, settings }: Props) {
         <div className="space-y-1.5">
           <Label>Phòng *</Label>
           <Select value={form.room_id} onValueChange={(v) => setForm({ ...form, room_id: v ?? '' })}>
-            <SelectTrigger>
-              <SelectValue placeholder="Chọn phòng đang thuê..." />
+            <SelectTrigger className="w-full">
+              <span className={`flex flex-1 text-left text-sm ${!form.room_id ? 'text-muted-foreground' : ''}`}>
+                {form.room_id
+                  ? (() => { const r = rooms.find(r => r.id === form.room_id); return r ? `${r.name}${r.tenant ? ` — ${r.tenant.full_name}` : ''}` : 'Chọn phòng...' })()
+                  : 'Chọn phòng đang thuê...'}
+              </span>
             </SelectTrigger>
             <SelectContent>
               {rooms.map((r) => (
@@ -180,8 +184,8 @@ export function InvoiceForm({ rooms, settings }: Props) {
               value={form.month.toString()}
               onValueChange={(v) => setForm({ ...form, month: parseInt(v ?? '1') })}
             >
-              <SelectTrigger>
-                <SelectValue />
+              <SelectTrigger className="w-full">
+                <span className="flex flex-1 text-left text-sm">Tháng {form.month}</span>
               </SelectTrigger>
               <SelectContent>
                 {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
@@ -196,8 +200,8 @@ export function InvoiceForm({ rooms, settings }: Props) {
               value={form.year.toString()}
               onValueChange={(v) => setForm({ ...form, year: parseInt(v ?? String(now.getFullYear())) })}
             >
-              <SelectTrigger>
-                <SelectValue />
+              <SelectTrigger className="w-full">
+                <span className="flex flex-1 text-left text-sm">{form.year}</span>
               </SelectTrigger>
               <SelectContent>
                 {[now.getFullYear() - 1, now.getFullYear(), now.getFullYear() + 1].map((y) => (
