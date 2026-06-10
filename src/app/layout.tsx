@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Be_Vietnam_Pro } from "next/font/google";
+import NextTopLoader from "nextjs-toploader";
 import "./globals.css";
 
 const beVietnamPro = Be_Vietnam_Pro({
@@ -27,6 +28,7 @@ export default function RootLayout({
   return (
     <html lang="vi" className={beVietnamPro.variable}>
       <body className="antialiased">
+        <NextTopLoader showSpinner={false} />
         {children}
       </body>
     </html>

@@ -32,6 +32,7 @@ export function InvoiceActions({ invoice }: Pick<Props, 'invoice'>) {
     if (error) { toast.error('Lỗi: ' + error.message); setLoading(false); return }
     toast.success('Đã đánh dấu thanh toán')
     router.refresh()
+    setLoading(false)
   }
 
   async function handleMarkUnpaid() {
@@ -45,6 +46,7 @@ export function InvoiceActions({ invoice }: Pick<Props, 'invoice'>) {
     if (error) { toast.error('Lỗi: ' + error.message); setLoading(false); return }
     toast.success('Đã đánh dấu chưa thu')
     router.refresh()
+    setLoading(false)
   }
 
   async function handleDelete() {

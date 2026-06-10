@@ -137,6 +137,11 @@
 }
 
 @media print {
-  body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  @page { margin: 0; }
+  body {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+    padding: 12mm;
+  }
   nav, aside, button, .print\:hidden { display: none !important; }
 }
