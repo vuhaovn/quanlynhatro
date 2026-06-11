@@ -51,6 +51,8 @@ export function InvoiceForm({ rooms, settings }: Props) {
     month: number
     year: number
     room_price: number
+    garbage_fee: number
+    internet_fee: number
     electric_start: string
     electric_end: string
     electric_price: string
