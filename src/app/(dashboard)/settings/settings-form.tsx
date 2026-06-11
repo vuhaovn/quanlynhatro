@@ -74,7 +74,7 @@ export function SettingsForm({ settings }: { settings: Settings | null }) {
     <form onSubmit={handleSave} className="space-y-4">
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1.5">
-          <Label htmlFor="electric_price">Giá điện (đ/kWh)</Label>
+          <Label htmlFor="electric_price" className="text-[12px]">Giá điện (đ/kWh)</Label>
           <Input
             id="electric_price"
             type="number"
@@ -84,7 +84,7 @@ export function SettingsForm({ settings }: { settings: Settings | null }) {
           />
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="water_price">Giá nước (đ/m³)</Label>
+          <Label htmlFor="water_price" className="text-[12px]">Giá nước (đ/m³)</Label>
           <Input
             id="water_price"
             type="number"
@@ -97,7 +97,7 @@ export function SettingsForm({ settings }: { settings: Settings | null }) {
 
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1.5">
-          <Label htmlFor="garbage_fee">Tiền rác (đ/tháng)</Label>
+          <Label htmlFor="garbage_fee" className="text-[12px]">Tiền rác (đ/tháng)</Label>
           <Input
             id="garbage_fee"
             type="number"
@@ -107,7 +107,7 @@ export function SettingsForm({ settings }: { settings: Settings | null }) {
           />
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="internet_fee">Cáp mạng (đ/tháng)</Label>
+          <Label htmlFor="internet_fee" className="text-[12px]">Cáp mạng (đ/tháng)</Label>
           <Input
             id="internet_fee"
             type="number"

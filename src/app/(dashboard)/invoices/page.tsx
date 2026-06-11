@@ -5,6 +5,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Plus, FileText } from 'lucide-react'
 import Link from 'next/link'
 import { Invoice, Room } from '@/types/database'
+import { PrintButton } from './_components/print-button'
 
 type InvoiceWithRoom = Invoice & { room: Pick<Room, 'name'> | null }
 
@@ -22,12 +23,15 @@ export default async function InvoicesPage() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold">Hóa đơn</h1>
-        <Link href="/invoices/new">
-          <Button size="sm" className="gap-1.5">
-            <Plus className="h-4 w-4" />
-            Tạo hóa đơn
-          </Button>
-        </Link>
+        <div className="flex items-center gap-2">
+          <PrintButton />
+          <Link href="/invoices/new">
+            <Button size="sm" className="gap-1.5">
+              <Plus className="h-4 w-4" />
+              Tạo hóa đơn
+            </Button>
+          </Link>
+        </div>
       </div>
 
       {invoices.length === 0 ? (
