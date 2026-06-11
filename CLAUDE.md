@@ -48,7 +48,11 @@
 - Tổng = tiền phòng + điện + nước + tiền rác + tiền cáp mạng
 - Giá điện/nước/rác/mạng lấy mặc định từ Settings, có thể override từng hóa đơn
 - Tiền cáp mạng: mặc định fill từ settings, nhập 0 nếu phòng không dùng
-- In hóa đơn (`window.print()`) — URL localhost bị ẩn qua `@page { margin: 0 }`
+- In hóa đơn đơn lẻ (`window.print()`) — URL ẩn qua `@page { margin: 0 }` + `body { padding: 12mm }`
+- **In hàng loạt**: `/invoices/print?month=X&year=Y` — 2 hóa đơn/tờ A4, tự động mở dialog in
+  - Nút "In tháng" trên trang danh sách → dialog chọn tháng/năm → mở tab mới
+  - CSS class `invoice-slip` (148.5mm height) + `invoice-pair` (page-break) trong `globals.css`
+  - Page dùng `<style>` tag để override `body padding` + dashboard container khi in
 - Đánh dấu đã thu / chưa thu
 
 ### 3.4 Cài Đặt
@@ -148,8 +152,12 @@ src/
 │       │   ├── page.tsx
 │       │   ├── new/
 │       │   ├── [id]/
+│       │   ├── print/                    # In hàng loạt (?month=&year=)
+│       │   │   ├── page.tsx             # Server component, 2 hóa đơn/A4
+│       │   │   └── print-trigger.tsx    # Client, auto window.print()
 │       │   └── _components/
-│       │       └── invoice-form.tsx
+│       │       ├── invoice-form.tsx
+│       │       └── print-button.tsx     # Dialog chọn tháng/năm → mở tab print
 │       └── settings/                     # Cài đặt
 │           ├── page.tsx
 │           ├── settings-form.tsx
@@ -184,12 +192,15 @@ src/
 - `router.refresh()` phải gọi **trước** `router.push()` — ngược lại cache không được invalidate đúng
 - `loading.tsx` có ở tất cả route để hiện skeleton khi navigate
 - `viewportFit: "cover"` trong viewport config — bắt buộc cho iOS safe area
+- **useState type annotation phải khai báo ĐẦY ĐỦ tất cả fields** — nếu initial value có field không có trong type → Vercel build lỗi `Object literal may only specify known properties`
 
 ### UI / UX
 - **Base UI Select**: `SelectValue` render raw value (UUID) — luôn dùng custom `<span>` trong `SelectTrigger` thay vì `<SelectValue>`
 - **Format VND**: dùng `formatVND()` helper (strip non-digits → thêm dấu phẩy mỗi 3 số) cho tất cả input tiền
 - **iOS safe area**: bottom nav có `paddingBottom: env(safe-area-inset-bottom)`, main content có `calc(5rem + env(safe-area-inset-bottom))`
-- **Print**: `@page { margin: 0 }` + `body { padding: 12mm }` để ẩn URL browser
+- **Print đơn lẻ**: `@page { margin: 0 }` + `body { padding: 12mm }` (globals.css)
+- **Print hàng loạt**: page tự override bằng `<style>` tag inline (`body padding: 0`, `main padding: 0`, `main > div max-width: none`) — tránh ảnh hưởng print đơn lẻ
+- **Font size base**: `html { font-size: 18px }` trong globals.css — tất cả rem scale theo đây
 
 ---
 
@@ -211,7 +222,8 @@ src/
 
 5. Cuối tháng
    └── /invoices/new → chọn phòng → nhập điện/nước → tạo hóa đơn
-   └── In PDF gửi khách
+   └── In PDF đơn lẻ từ /invoices/[id]
+   └── Hoặc "In tháng" → chọn tháng/năm → /invoices/print → in tất cả 2/trang A4
 
 6. Khách trả tiền
    └── Đánh dấu hóa đơn "Đã thanh toán"
