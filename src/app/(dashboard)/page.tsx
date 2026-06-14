@@ -1,20 +1,31 @@
 import { createClient } from '@/lib/supabase/server'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
-import { DoorOpen, Users, FileText, AlertCircle } from 'lucide-react'
+import { DoorOpen, Users, FileText, AlertCircle, ChevronRight } from 'lucide-react'
 import Link from 'next/link'
 import { Room, Invoice } from '@/types/database'
+
+type UnpaidInvoice = Invoice & { room: Pick<Room, 'name' | 'floor'> | null }
+
+function roomLabel(room: UnpaidInvoice['room']) {
+  if (!room) return '—'
+  return room.floor ? `Khu ${room.floor} · ${room.name}` : room.name
+}
 
 export default async function DashboardPage() {
   const supabase = await createClient()
 
   const [roomsRes, invoicesRes] = await Promise.all([
     supabase.from('rooms').select('*'),
-    supabase.from('invoices').select('*').eq('is_paid', false),
+    supabase
+      .from('invoices')
+      .select('*, room:rooms(name, floor)')
+      .eq('is_paid', false)
+      .order('year', { ascending: false })
+      .order('month', { ascending: false }),
   ])
 
   const rooms = (roomsRes.data ?? []) as Room[]
-  const unpaidInvoices = (invoicesRes.data ?? []) as Invoice[]
+  const unpaidInvoices = (invoicesRes.data ?? []) as UnpaidInvoice[]
 
   const totalRooms = rooms.length
   const rentedRooms = rooms.filter((r) => r.status === 'rented').length
@@ -100,28 +111,29 @@ export default async function DashboardPage() {
       {/* Unpaid invoices list */}
       {unpaidInvoices.length > 0 && (
         <div>
-          <h2 className="text-sm font-semibold mb-3 text-muted-foreground uppercase tracking-wide">Cần thu tiền</h2>
-          <div className="space-y-2">
-            {unpaidInvoices.slice(0, 5).map((invoice) => (
-              <Link key={invoice.id} href={`/invoices/${invoice.id}`}>
-                <Card className="hover:shadow-md transition-shadow cursor-pointer">
-                  <CardContent className="px-4 py-3 flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium">Tháng {invoice.month}/{invoice.year}</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-sm font-semibold text-orange-600">
-                        {invoice.total_amount.toLocaleString('vi-VN')}đ
-                      </p>
-                      <Badge variant="outline" className="text-[10px] border-orange-300 text-orange-600">
-                        Chưa thu
-                      </Badge>
-                    </div>
-                  </CardContent>
-                </Card>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Cần thu tiền</h2>
+            {unpaidInvoices.length > 5 && (
+              <Link href="/invoices?filter=unpaid" className="text-xs text-primary flex items-center gap-0.5 hover:underline">
+                Xem tất cả {unpaidInvoices.length} <ChevronRight className="h-3 w-3" />
+              </Link>
+            )}
+          </div>
+          <Card className="overflow-hidden">
+            {unpaidInvoices.slice(0, 5).map((invoice, i) => (
+              <Link key={invoice.id} href={`/invoices/${invoice.id}`} className="block">
+                <div className={`flex items-center justify-between px-4 py-2.5 hover:bg-muted/30 transition-colors ${i > 0 ? 'border-t' : ''}`}>
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium truncate">{roomLabel(invoice.room)}</p>
+                    <p className="text-xs text-muted-foreground">Tháng {invoice.month}/{invoice.year}</p>
+                  </div>
+                  <p className="text-sm font-semibold text-orange-600 shrink-0 ml-3">
+                    {invoice.total_amount.toLocaleString('vi-VN')}đ
+                  </p>
+                </div>
               </Link>
             ))}
-          </div>
+          </Card>
         </div>
       )}
     </div>
