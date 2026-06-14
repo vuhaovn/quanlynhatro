@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect } from 'react'
-import { Printer } from 'lucide-react'
+import { Link, Printer } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 export function PrintTrigger({ count }: { count: number }) {
@@ -12,9 +12,9 @@ export function PrintTrigger({ count }: { count: number }) {
 
   return (
     <div className="print:hidden fixed top-0 left-0 right-0 z-50 bg-white border-b shadow-sm px-4 py-3 flex items-center gap-3">
-      <a href="/invoices" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+      <Link href="/invoices" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
         ← Quay lại
-      </a>
+      </Link>
       <p className="text-sm flex-1 text-muted-foreground">
         {count} hóa đơn · {Math.ceil(count / 2)} tờ A4
       </p>

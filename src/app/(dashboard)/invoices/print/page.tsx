@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { Invoice, Room, Tenant, Settings } from '@/types/database'
 import { PrintTrigger } from './print-trigger'
+import { Link } from 'lucide-react'
 
 type FullInvoice = Invoice & {
   room: Pick<Room, 'name'> | null
@@ -42,7 +43,7 @@ export default async function PrintInvoicesPage({
     return (
       <div className="min-h-[60vh] flex flex-col items-center justify-center gap-3 text-center">
         <p className="text-lg font-medium">Không có hóa đơn tháng {month}/{year}</p>
-        <a href="/invoices" className="text-sm text-muted-foreground hover:underline">← Quay lại danh sách</a>
+        <Link href="/invoices" className="text-sm text-muted-foreground hover:underline">← Quay lại danh sách</Link>
       </div>
     )
   }

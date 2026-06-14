@@ -8,8 +8,12 @@ import { Room } from '@/types/database'
 
 export default async function RoomsPage() {
   const supabase = await createClient()
-  const { data } = await supabase.from('rooms').select('*').order('name')
-  const rooms = (data ?? []) as Room[]
+  const { data } = await supabase.from('rooms').select('*').order('floor').order('name')
+  const rooms = ((data ?? []) as Room[]).sort((a, b) => {
+    const floorDiff = (a.floor ?? 0) - (b.floor ?? 0)
+    if (floorDiff !== 0) return floorDiff
+    return a.name.localeCompare(b.name, 'vi', { numeric: true })
+  })
 
   return (
     <div className="space-y-4">
