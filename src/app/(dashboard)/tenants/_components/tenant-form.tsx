@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select'
 import { toast } from 'sonner'
 import { Tenant, Room } from '@/types/database'
@@ -20,6 +21,14 @@ const schema = z.object({
   start_date: z.string().min(1, 'Ngày bắt đầu không được để trống'),
   end_date: z.string().nullable(),
   deposit: z.preprocess((v) => Number(String(v).replace(/,/g, '')), z.number().min(0, 'Tiền cọc không hợp lệ')),
+  gender: z.string().nullable(),
+  date_of_birth: z.string().nullable(),
+  hometown: z.string().nullable(),
+  workplace: z.string().nullable(),
+  temp_residence: z.boolean().nullable(),
+  ethnicity: z.string().nullable(),
+  religion: z.string().nullable(),
+  occupation: z.string().nullable(),
 })
 
 function formatVND(raw: string): string {
@@ -44,6 +53,14 @@ export function TenantForm({ tenant, rooms }: Props) {
     start_date: tenant?.start_date ?? new Date().toISOString().split('T')[0],
     end_date: tenant?.end_date ?? '',
     deposit: tenant?.deposit ? formatVND(tenant.deposit.toString()) : '',
+    gender: tenant?.gender ?? '',
+    date_of_birth: tenant?.date_of_birth ?? '',
+    hometown: tenant?.hometown ?? '',
+    workplace: tenant?.workplace ?? '',
+    temp_residence: tenant?.temp_residence ?? null as boolean | null,
+    ethnicity: tenant?.ethnicity ?? '',
+    religion: tenant?.religion ?? '',
+    occupation: tenant?.occupation ?? '',
   })
   const [returningTenant, setReturningTenant] = useState<Tenant | null>(null)
   const [reactivateId, setReactivateId] = useState<string | null>(null)
@@ -73,6 +90,14 @@ export function TenantForm({ tenant, rooms }: Props) {
       start_date: new Date().toISOString().split('T')[0],
       end_date: '',
       deposit: t.deposit ? formatVND(t.deposit.toString()) : '',
+      gender: t.gender ?? '',
+      date_of_birth: t.date_of_birth ?? '',
+      hometown: t.hometown ?? '',
+      workplace: t.workplace ?? '',
+      temp_residence: t.temp_residence ?? null,
+      ethnicity: t.ethnicity ?? '',
+      religion: t.religion ?? '',
+      occupation: t.occupation ?? '',
     })
     setReactivateId(t.id)
     setReturningTenant(null)
@@ -88,6 +113,14 @@ export function TenantForm({ tenant, rooms }: Props) {
       start_date: new Date().toISOString().split('T')[0],
       end_date: '',
       deposit: '',
+      gender: '',
+      date_of_birth: '',
+      hometown: '',
+      workplace: '',
+      temp_residence: null,
+      ethnicity: '',
+      religion: '',
+      occupation: '',
     })
   }
 
@@ -98,6 +131,13 @@ export function TenantForm({ tenant, rooms }: Props) {
       ...form,
       room_id: form.room_id || null,
       end_date: form.end_date || null,
+      gender: form.gender || null,
+      date_of_birth: form.date_of_birth || null,
+      hometown: form.hometown || null,
+      workplace: form.workplace || null,
+      ethnicity: form.ethnicity || null,
+      religion: form.religion || null,
+      occupation: form.occupation || null,
     })
     if (!result.success) {
       toast.error(result.error.issues[0].message)
@@ -115,6 +155,14 @@ export function TenantForm({ tenant, rooms }: Props) {
       start_date: result.data.start_date,
       end_date: result.data.end_date,
       deposit: result.data.deposit,
+      gender: result.data.gender,
+      date_of_birth: result.data.date_of_birth,
+      hometown: result.data.hometown,
+      workplace: result.data.workplace,
+      temp_residence: result.data.temp_residence,
+      ethnicity: result.data.ethnicity,
+      religion: result.data.religion,
+      occupation: result.data.occupation,
     }
 
     if (reactivateId) {
@@ -136,7 +184,15 @@ export function TenantForm({ tenant, rooms }: Props) {
       const { error } = await supabase.from('tenants').update(updateData).eq('id', tenant.id)
       if (error) { toast.error('Lỗi: ' + error.message); setLoading(false); return }
       if (oldRoomId && oldRoomId !== newRoomId) {
-        await supabase.from('rooms').update({ status: 'empty' }).eq('id', oldRoomId)
+        const { count } = await supabase
+          .from('tenants')
+          .select('*', { count: 'exact', head: true })
+          .eq('room_id', oldRoomId)
+          .eq('is_active', true)
+          .neq('id', tenant.id)
+        if (count === 0) {
+          await supabase.from('rooms').update({ status: 'empty' }).eq('id', oldRoomId)
+        }
       }
       if (newRoomId && newRoomId !== oldRoomId) {
         await supabase.from('rooms').update({ status: 'rented' }).eq('id', newRoomId)
@@ -156,9 +212,7 @@ export function TenantForm({ tenant, rooms }: Props) {
     router.push('/tenants')
   }
 
-  const availableRooms = rooms.filter(
-    (r) => r.status === 'empty' || r.id === tenant?.room_id
-  )
+  const availableRooms = rooms
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
@@ -175,18 +229,10 @@ export function TenantForm({ tenant, rooms }: Props) {
               </p>
             </div>
             <div className="flex gap-2 shrink-0">
-              <Button
-                size="sm" variant="outline" type="button"
-                className="h-7 text-xs"
-                onClick={() => setReturningTenant(null)}
-              >
+              <Button size="sm" variant="outline" type="button" className="h-7 text-xs" onClick={() => setReturningTenant(null)}>
                 Bỏ qua
               </Button>
-              <Button
-                size="sm" type="button"
-                className="h-7 text-xs"
-                onClick={() => applyReturning(returningTenant)}
-              >
+              <Button size="sm" type="button" className="h-7 text-xs" onClick={() => applyReturning(returningTenant)}>
                 Tái kích hoạt
               </Button>
             </div>
@@ -215,6 +261,7 @@ export function TenantForm({ tenant, rooms }: Props) {
         </div>
       )}
 
+      {/* Thông tin cơ bản */}
       <div className="space-y-1.5">
         <Label htmlFor="full_name">Họ tên *</Label>
         <Input
@@ -252,6 +299,109 @@ export function TenantForm({ tenant, rooms }: Props) {
         </div>
       </div>
 
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1.5">
+          <Label>Giới tính</Label>
+          <Select
+            value={form.gender ?? ''}
+            onValueChange={(v) => setForm({ ...form, gender: (!v || v === 'none') ? '' : v })}
+          >
+            <SelectTrigger className="w-full">
+              <span className={`flex flex-1 text-left text-sm ${!form.gender ? 'text-muted-foreground' : ''}`}>
+                {form.gender || 'Chọn...'}
+              </span>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">—</SelectItem>
+              <SelectItem value="Nam">Nam</SelectItem>
+              <SelectItem value="Nữ">Nữ</SelectItem>
+              <SelectItem value="Khác">Khác</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="date_of_birth">Ngày sinh</Label>
+          <Input
+            id="date_of_birth"
+            type="date"
+            value={form.date_of_birth}
+            onChange={(e) => setForm({ ...form, date_of_birth: e.target.value })}
+          />
+        </div>
+      </div>
+
+      <div className="space-y-1.5">
+        <Label htmlFor="hometown">Hộ khẩu thường trú</Label>
+        <Textarea
+          id="hometown"
+          placeholder="Địa chỉ thường trú..."
+          value={form.hometown}
+          onChange={(e) => setForm({ ...form, hometown: e.target.value })}
+          rows={2}
+        />
+      </div>
+
+      <div className="space-y-1.5">
+        <Label htmlFor="workplace">Nơi làm việc</Label>
+        <Input
+          id="workplace"
+          placeholder="Tên công ty, địa chỉ..."
+          value={form.workplace}
+          onChange={(e) => setForm({ ...form, workplace: e.target.value })}
+        />
+      </div>
+
+      <div className="space-y-1.5">
+        <Label htmlFor="occupation">Công việc</Label>
+        <Input
+          id="occupation"
+          placeholder="VD: Công nhân, Sinh viên..."
+          value={form.occupation}
+          onChange={(e) => setForm({ ...form, occupation: e.target.value })}
+        />
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1.5">
+          <Label htmlFor="ethnicity">Dân tộc</Label>
+          <Input
+            id="ethnicity"
+            placeholder="VD: Kinh, Tày..."
+            value={form.ethnicity}
+            onChange={(e) => setForm({ ...form, ethnicity: e.target.value })}
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="religion">Tôn giáo</Label>
+          <Input
+            id="religion"
+            placeholder="VD: Không, Phật giáo..."
+            value={form.religion}
+            onChange={(e) => setForm({ ...form, religion: e.target.value })}
+          />
+        </div>
+      </div>
+
+      <div className="space-y-1.5">
+        <Label>Đăng ký tạm trú</Label>
+        <Select
+          value={form.temp_residence === null ? '' : form.temp_residence ? 'true' : 'false'}
+          onValueChange={(v) => setForm({ ...form, temp_residence: (!v || v === '') ? null : v === 'true' })}
+        >
+          <SelectTrigger className="w-full">
+            <span className={`flex flex-1 text-left text-sm ${form.temp_residence === null ? 'text-muted-foreground' : ''}`}>
+              {form.temp_residence === null ? 'Chọn...' : form.temp_residence ? 'Có' : 'Không'}
+            </span>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="">—</SelectItem>
+            <SelectItem value="true">Có</SelectItem>
+            <SelectItem value="false">Không</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Thông tin hợp đồng */}
       <div className="space-y-1.5">
         <Label>Phòng</Label>
         <Select
@@ -261,7 +411,10 @@ export function TenantForm({ tenant, rooms }: Props) {
           <SelectTrigger className="w-full">
             <span className={`flex flex-1 text-left text-sm ${!form.room_id ? 'text-muted-foreground' : ''}`}>
               {form.room_id
-                ? availableRooms.find((r) => r.id === form.room_id)?.name ?? 'Chọn phòng...'
+                ? (() => {
+                    const r = availableRooms.find((r) => r.id === form.room_id)
+                    return r ? `${r.floor ? `Khu ${r.floor} - ` : ''}${r.name}` : 'Chọn phòng...'
+                  })()
                 : 'Chọn phòng...'}
             </span>
           </SelectTrigger>
@@ -269,7 +422,7 @@ export function TenantForm({ tenant, rooms }: Props) {
             <SelectItem value="none">Chưa gán phòng</SelectItem>
             {availableRooms.map((r) => (
               <SelectItem key={r.id} value={r.id}>
-                {r.name} — {r.price.toLocaleString('vi-VN')}đ/tháng
+                {r.floor ? `Khu ${r.floor} - ` : ''}{r.name} — {r.price.toLocaleString('vi-VN')}đ/tháng
               </SelectItem>
             ))}
           </SelectContent>

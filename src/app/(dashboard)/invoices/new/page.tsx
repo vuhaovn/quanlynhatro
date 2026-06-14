@@ -1,5 +1,4 @@
 import { createClient } from '@/lib/supabase/server'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ChevronLeft } from 'lucide-react'
 import Link from 'next/link'
 import { Room, Tenant, Settings } from '@/types/database'
@@ -9,7 +8,7 @@ export default async function NewInvoicePage() {
   const supabase = await createClient()
 
   const [roomsRes, tenantsRes, settingsRes] = await Promise.all([
-    supabase.from('rooms').select('*').eq('status', 'rented').order('name'),
+    supabase.from('rooms').select('*').eq('status', 'rented'),
     supabase.from('tenants').select('*').eq('is_active', true),
     supabase.from('settings').select('*').single(),
   ])
@@ -18,11 +17,16 @@ export default async function NewInvoicePage() {
   const tenants = (tenantsRes.data ?? []) as Tenant[]
   const settings = settingsRes.data as Settings | null
 
-  // Join tenant into room
-  const roomsWithTenant = rooms.map((room) => ({
-    ...room,
-    tenant: tenants.find((t) => t.room_id === room.id) ?? null,
-  }))
+  const roomsWithTenant = rooms
+    .map((room) => ({
+      ...room,
+      tenant: tenants.find((t) => t.room_id === room.id) ?? null,
+    }))
+    .sort((a, b) => {
+      const za = a.floor ?? 0, zb = b.floor ?? 0
+      if (za !== zb) return za - zb
+      return a.name.localeCompare(b.name, 'vi', { numeric: true })
+    })
 
   return (
     <div className="space-y-4">
@@ -33,14 +37,7 @@ export default async function NewInvoicePage() {
         <h1 className="text-xl font-bold">Tạo hóa đơn</h1>
       </div>
 
-      <Card>
-        <CardHeader className="px-4 pt-4 pb-2">
-          <CardTitle className="text-sm text-muted-foreground">Thông tin hóa đơn</CardTitle>
-        </CardHeader>
-        <CardContent className="px-4 pb-4">
-          <InvoiceForm rooms={roomsWithTenant} settings={settings} />
-        </CardContent>
-      </Card>
+      <InvoiceForm rooms={roomsWithTenant} settings={settings} />
     </div>
   )
 }

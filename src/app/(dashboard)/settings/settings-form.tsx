@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -8,6 +8,8 @@ import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
 import { Settings } from '@/types/database'
 import { z } from 'zod'
+import { ImagePlus, Trash2, Loader2 } from 'lucide-react'
+import Image from 'next/image'
 
 const settingsSchema = z.object({
   electric_price: z.number().positive('Giá điện phải lớn hơn 0'),
@@ -21,6 +23,10 @@ const settingsSchema = z.object({
 
 export function SettingsForm({ settings }: { settings: Settings | null }) {
   const [loading, setLoading] = useState(false)
+  const [qrUrl, setQrUrl] = useState<string | null>(settings?.qr_image_url ?? null)
+  const [qrLoading, setQrLoading] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
   const [form, setForm] = useState({
     electric_price: settings?.electric_price ?? 3500,
     water_price: settings?.water_price ?? 15000,
@@ -68,6 +74,53 @@ export function SettingsForm({ settings }: { settings: Settings | null }) {
       toast.success('Đã lưu cài đặt')
     }
     setLoading(false)
+  }
+
+  async function handleQrUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    setQrLoading(true)
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+
+    const ext = file.name.split('.').pop() ?? 'png'
+    const path = `${user!.id}/qr.${ext}`
+
+    const { error: uploadError } = await supabase.storage
+      .from('qr-images')
+      .upload(path, file, { upsert: true, contentType: file.type })
+
+    if (uploadError) {
+      toast.error('Upload thất bại: ' + uploadError.message)
+      setQrLoading(false)
+      return
+    }
+
+    const { data: { publicUrl } } = supabase.storage.from('qr-images').getPublicUrl(path)
+    // Bust cache so the new image shows immediately
+    const urlWithBust = `${publicUrl}?t=${Date.now()}`
+
+    const { error: saveError } = await supabase
+      .from('settings')
+      .upsert({ user_id: user!.id, qr_image_url: publicUrl }, { onConflict: 'user_id' })
+
+    if (saveError) {
+      toast.error('Lưu thất bại: ' + saveError.message)
+    } else {
+      setQrUrl(urlWithBust)
+      toast.success('Đã upload QR code')
+    }
+    setQrLoading(false)
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }
+
+  async function handleQrRemove() {
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    await supabase.from('settings').upsert({ user_id: user!.id, qr_image_url: null }, { onConflict: 'user_id' })
+    setQrUrl(null)
+    toast.success('Đã xóa QR code')
   }
 
   return (
@@ -118,6 +171,7 @@ export function SettingsForm({ settings }: { settings: Settings | null }) {
         </div>
       </div>
 
+      {/* Bank info */}
       <div className="space-y-3 pt-2">
         <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Thông tin ngân hàng</p>
         <div className="space-y-1.5">
@@ -146,6 +200,67 @@ export function SettingsForm({ settings }: { settings: Settings | null }) {
             value={form.bank_owner}
             onChange={(e) => setForm({ ...form, bank_owner: e.target.value })}
           />
+        </div>
+      </div>
+
+      {/* QR Code */}
+      <div className="space-y-3 pt-2">
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Mã QR thanh toán</p>
+        <div className="flex items-start gap-4">
+          {qrUrl ? (
+            <div className="relative">
+              <Image
+                src={qrUrl}
+                alt="QR Code"
+                width={120}
+                height={120}
+                className="rounded-lg border object-contain bg-white"
+                unoptimized
+              />
+            </div>
+          ) : (
+            <div className="w-[120px] h-[120px] rounded-lg border-2 border-dashed border-border flex items-center justify-center bg-muted/30 shrink-0">
+              <ImagePlus className="h-8 w-8 text-muted-foreground/50" />
+            </div>
+          )}
+
+          <div className="flex flex-col gap-2 justify-center">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleQrUpload}
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+              disabled={qrLoading}
+              onClick={() => fileInputRef.current?.click()}
+            >
+              {qrLoading
+                ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                : <ImagePlus className="h-3.5 w-3.5" />}
+              {qrUrl ? 'Thay ảnh' : 'Upload QR'}
+            </Button>
+            {qrUrl && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="gap-1.5 text-destructive hover:text-destructive hover:bg-destructive/10"
+                onClick={handleQrRemove}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                Xóa
+              </Button>
+            )}
+            <p className="text-[11px] text-muted-foreground leading-tight">
+              QR sẽ được in trên<br />hóa đơn
+            </p>
+          </div>
         </div>
       </div>
 

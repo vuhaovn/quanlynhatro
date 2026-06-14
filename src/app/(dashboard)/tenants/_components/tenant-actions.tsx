@@ -57,7 +57,15 @@ export function TenantActions({ tenant }: Props) {
       .eq('id', tenant.id)
     if (tenantError) { toast.error('Lỗi cập nhật: ' + tenantError.message); setLoading(false); return }
 
-    await supabase.from('rooms').update({ status: 'empty' }).eq('id', tenant.room_id!)
+    const { count } = await supabase
+      .from('tenants')
+      .select('*', { count: 'exact', head: true })
+      .eq('room_id', tenant.room_id!)
+      .eq('is_active', true)
+      .neq('id', tenant.id)
+    if (count === 0) {
+      await supabase.from('rooms').update({ status: 'empty' }).eq('id', tenant.room_id!)
+    }
 
     toast.success('Đã kết thúc hợp đồng')
     router.refresh()

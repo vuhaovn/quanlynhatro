@@ -1,19 +1,18 @@
 import { createClient } from '@/lib/supabase/server'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
 import { Plus, FileText } from 'lucide-react'
 import Link from 'next/link'
 import { Invoice, Room } from '@/types/database'
 import { PrintButton } from './_components/print-button'
+import { InvoiceList } from './_components/invoice-list'
 
-type InvoiceWithRoom = Invoice & { room: Pick<Room, 'name'> | null }
+type InvoiceWithRoom = Invoice & { room: Pick<Room, 'name' | 'floor'> | null }
 
 export default async function InvoicesPage() {
   const supabase = await createClient()
   const { data } = await supabase
     .from('invoices')
-    .select('*, room:rooms(name)')
+    .select('*, room:rooms(name, floor)')
     .order('year', { ascending: false })
     .order('month', { ascending: false })
 
@@ -28,7 +27,7 @@ export default async function InvoicesPage() {
           <Link href="/invoices/new">
             <Button size="sm" className="gap-1.5">
               <Plus className="h-4 w-4" />
-              Tạo hóa đơn
+              Tạo
             </Button>
           </Link>
         </div>
@@ -45,35 +44,7 @@ export default async function InvoicesPage() {
           </Link>
         </div>
       ) : (
-        <div className="space-y-2">
-          {invoices.map((invoice) => (
-            <Link key={invoice.id} href={`/invoices/${invoice.id}`}>
-              <Card className="hover:shadow-md transition-shadow cursor-pointer">
-                <CardContent className="px-4 py-3 flex items-center justify-between">
-                  <div>
-                    <p className="font-medium">
-                      {invoice.room?.name ?? 'Phòng không xác định'}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      Tháng {invoice.month}/{invoice.year}
-                    </p>
-                  </div>
-                  <div className="text-right space-y-1">
-                    <p className="text-sm font-semibold">
-                      {invoice.total_amount.toLocaleString('vi-VN')}đ
-                    </p>
-                    <Badge
-                      variant={invoice.is_paid ? 'default' : 'outline'}
-                      className={invoice.is_paid ? 'bg-green-500 hover:bg-green-600 text-xs' : 'text-orange-600 border-orange-300 text-xs'}
-                    >
-                      {invoice.is_paid ? 'Đã thu' : 'Chưa thu'}
-                    </Badge>
-                  </div>
-                </CardContent>
-              </Card>
-            </Link>
-          ))}
-        </div>
+        <InvoiceList invoices={invoices} />
       )}
     </div>
   )

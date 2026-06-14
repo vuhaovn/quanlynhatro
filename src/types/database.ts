@@ -22,6 +22,14 @@ export interface Tenant {
   end_date: string | null
   is_active: boolean
   deposit: number
+  gender: string | null
+  date_of_birth: string | null
+  hometown: string | null
+  workplace: string | null
+  temp_residence: boolean | null
+  ethnicity: string | null
+  religion: string | null
+  occupation: string | null
   created_at: string
   room?: Room
 }

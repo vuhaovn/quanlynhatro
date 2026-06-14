@@ -4,35 +4,33 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
+import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select'
-import { Card, CardContent } from '@/components/ui/card'
-import { Separator } from '@/components/ui/separator'
 import { toast } from 'sonner'
 import { Room, Tenant, Settings } from '@/types/database'
-import { z } from 'zod'
-
-const schema = z.object({
-  room_id: z.string().min(1, 'Vui lòng chọn phòng'),
-  tenant_id: z.string().min(1, 'Không tìm thấy người thuê'),
-  month: z.number().int().min(1).max(12),
-  year: z.number().int().min(2020),
-  room_price: z.number().positive(),
-  garbage_fee: z.preprocess(Number, z.number().min(0)),
-  internet_fee: z.preprocess(Number, z.number().min(0)),
-  electric_start: z.preprocess(Number, z.number().min(0)),
-  electric_end: z.preprocess(Number, z.number().min(0)),
-  electric_price: z.preprocess(Number, z.number().positive()),
-  water_start: z.preprocess(Number, z.number().min(0)),
-  water_end: z.preprocess(Number, z.number().min(0)),
-  water_price: z.preprocess(Number, z.number().positive()),
-  note: z.string().nullable(),
-})
+import { Loader2 } from 'lucide-react'
 
 interface RoomWithTenant extends Room {
   tenant: Tenant | null
+}
+
+interface InvoiceRow {
+  room_id: string
+  tenant_id: string
+  zone: number | null
+  room_name: string
+  tenant_name: string
+  room_price: number
+  electric_start: string
+  electric_end: string
+  electric_price: string
+  water_start: string
+  water_end: string
+  water_price: string
+  garbage_fee: number
+  internet_fee: number
+  note: string
+  included: boolean
 }
 
 interface Props {
@@ -40,375 +38,335 @@ interface Props {
   settings: Settings | null
 }
 
-export function InvoiceForm({ rooms, settings }: Props) {
+function n(v: string | number) { return Number(v) || 0 }
+function fmt(v: number) { return v.toLocaleString('vi-VN') }
+
+function rowTotal(row: InvoiceRow) {
+  const elec = Math.round(Math.max(0, n(row.electric_end) - n(row.electric_start)) * n(row.electric_price))
+  const water = Math.round(Math.max(0, n(row.water_end) - n(row.water_start)) * n(row.water_price))
+  return row.room_price + elec + water + row.garbage_fee + row.internet_fee
+}
+
+export function InvoiceForm({ rooms: allRooms, settings }: Props) {
   const router = useRouter()
-  const [loading, setLoading] = useState(false)
-
   const now = new Date()
-  const [form, setForm] = useState<{
-    room_id: string
-    tenant_id: string
-    month: number
-    year: number
-    room_price: number
-    garbage_fee: number
-    internet_fee: number
-    electric_start: string
-    electric_end: string
-    electric_price: string
-    water_start: string
-    water_end: string
-    water_price: string
-    note: string
-  }>({
-    room_id: '',
-    tenant_id: '',
-    month: now.getMonth() + 1,
-    year: now.getFullYear(),
-    room_price: 0,
-    garbage_fee: settings?.garbage_fee ?? 0,
-    internet_fee: settings?.internet_fee ?? 0,
-    electric_start: '',
-    electric_end: '',
-    electric_price: settings?.electric_price?.toString() ?? '3500',
-    water_start: '',
-    water_end: '',
-    water_price: settings?.water_price?.toString() ?? '15000',
-    note: '',
-  })
+  const [month, setMonth] = useState(now.getMonth() + 1)
+  const [year, setYear] = useState(now.getFullYear())
+  const [loading, setLoading] = useState(false)
+  const [existingIds, setExistingIds] = useState<Set<string>>(new Set())
 
-  // When room changes, auto-fill room_price and tenant
-  useEffect(() => {
-    if (!form.room_id) return
-    const room = rooms.find((r) => r.id === form.room_id)
-    if (!room) return
-    setForm((prev) => ({
-      ...prev,
+  const rooms = allRooms.filter((r) => r.tenant !== null)
+
+  const [rows, setRows] = useState<InvoiceRow[]>(() =>
+    rooms.map((room) => ({
+      room_id: room.id,
+      tenant_id: room.tenant!.id,
+      zone: room.floor,
+      room_name: room.name,
+      tenant_name: room.tenant!.full_name,
       room_price: room.price,
+      electric_start: '',
+      electric_end: '',
+      electric_price: settings?.electric_price?.toString() ?? '3500',
+      water_start: '',
+      water_end: '',
+      water_price: settings?.water_price?.toString() ?? '15000',
       garbage_fee: settings?.garbage_fee ?? 0,
       internet_fee: settings?.internet_fee ?? 0,
-      tenant_id: room.tenant?.id ?? '',
+      note: '',
+      included: true,
     }))
-  }, [form.room_id, rooms])
+  )
 
-  const electricUsage = Math.max(0, Number(form.electric_end) - Number(form.electric_start))
-  const waterUsage = Math.max(0, Number(form.water_end) - Number(form.water_start))
-  const electricTotal = Math.round(electricUsage * Number(form.electric_price))
-  const waterTotal = Math.round(waterUsage * Number(form.water_price))
-  const grandTotal = form.room_price + electricTotal + waterTotal + form.garbage_fee + form.internet_fee
+  useEffect(() => {
+    const supabase = createClient()
+    supabase
+      .from('invoices')
+      .select('room_id')
+      .eq('month', month)
+      .eq('year', year)
+      .then(({ data }) => {
+        setExistingIds(new Set((data ?? []).map((d: { room_id: string }) => d.room_id)))
+      })
+  }, [month, year])
 
-  const selectedRoom = rooms.find((r) => r.id === form.room_id)
+  function update<K extends keyof InvoiceRow>(i: number, k: K, v: InvoiceRow[K]) {
+    setRows((prev) => prev.map((r, idx) => (idx === i ? { ...r, [k]: v } : r)))
+  }
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
+  const availableRows = rows.filter((r) => !existingIds.has(r.room_id))
+  const includedRows = availableRows.filter((r) => r.included)
+  const allChecked = availableRows.length > 0 && availableRows.every((r) => r.included)
+  const someChecked = availableRows.some((r) => r.included)
+  const grandTotal = includedRows.reduce((sum, r) => sum + rowTotal(r), 0)
 
-    if (Number(form.electric_end) < Number(form.electric_start)) {
-      toast.error('Chỉ số điện cuối kỳ phải lớn hơn đầu kỳ')
-      return
-    }
-    if (Number(form.water_end) < Number(form.water_start)) {
-      toast.error('Chỉ số nước cuối kỳ phải lớn hơn đầu kỳ')
-      return
-    }
-
-    const result = schema.safeParse({
-      ...form,
-      month: form.month,
-      year: form.year,
-    })
-    if (!result.success) {
-      toast.error(result.error.issues[0].message)
-      return
-    }
-
+  async function handleSubmit() {
+    if (!includedRows.length) { toast.error('Không có phòng nào được chọn'); return }
     setLoading(true)
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
 
-    const { error } = await supabase.from('invoices').insert({
-      user_id: user!.id,
-      room_id: result.data.room_id,
-      tenant_id: result.data.tenant_id,
-      month: result.data.month,
-      year: result.data.year,
-      room_price: result.data.room_price,
-      electric_start: result.data.electric_start,
-      electric_end: result.data.electric_end,
-      electric_price: result.data.electric_price,
-      water_start: result.data.water_start,
-      water_end: result.data.water_end,
-      water_price: result.data.water_price,
-      garbage_fee: result.data.garbage_fee,
-      internet_fee: result.data.internet_fee,
-      note: form.note || null,
-      is_paid: false,
-    })
-
-    if (error) {
-      if (error.code === '23505') {
-        toast.error(`Hóa đơn tháng ${form.month}/${form.year} của phòng này đã tồn tại`)
-      } else {
-        toast.error('Lỗi: ' + error.message)
-      }
-      setLoading(false)
-      return
+    let created = 0, failed = 0
+    for (const row of includedRows) {
+      const { error } = await supabase.from('invoices').insert({
+        user_id: user!.id,
+        room_id: row.room_id,
+        tenant_id: row.tenant_id,
+        month, year,
+        room_price: row.room_price,
+        electric_start: n(row.electric_start),
+        electric_end: n(row.electric_end),
+        electric_price: n(row.electric_price),
+        water_start: n(row.water_start),
+        water_end: n(row.water_end),
+        water_price: n(row.water_price),
+        garbage_fee: row.garbage_fee,
+        internet_fee: row.internet_fee,
+        note: row.note || null,
+        is_paid: false,
+      })
+      if (error) failed++; else created++
     }
 
-    toast.success('Đã tạo hóa đơn')
-    router.refresh()
-    router.push('/invoices')
+    setLoading(false)
+    if (created > 0) {
+      toast.success(`Đã tạo ${created} hóa đơn${failed ? ` · ${failed} lỗi` : ''}`)
+      router.refresh()
+      router.push('/invoices')
+    } else {
+      toast.error(`Tạo thất bại · ${failed} lỗi`)
+    }
   }
 
+  const TH = 'border-b border-r border-border px-2 py-2 text-xs font-semibold text-muted-foreground whitespace-nowrap bg-muted/50 text-center'
+  const TD = 'border-b border-r border-border'
+  const INP = 'w-full h-8 text-right text-sm px-1.5 bg-transparent focus:bg-primary/5 focus:outline-none disabled:opacity-40 disabled:cursor-not-allowed'
+
   return (
-    <form onSubmit={handleSubmit} className="space-y-5">
-      {/* Room + Period */}
-      <div className="space-y-3">
-        <div className="space-y-1.5">
-          <Label>Phòng *</Label>
-          <Select value={form.room_id} onValueChange={(v) => setForm({ ...form, room_id: v ?? '' })}>
-            <SelectTrigger className="w-full">
-              <span className={`flex flex-1 text-left text-sm ${!form.room_id ? 'text-muted-foreground' : ''}`}>
-                {form.room_id
-                  ? (() => { const r = rooms.find(r => r.id === form.room_id); return r ? `${r.name}${r.tenant ? ` — ${r.tenant.full_name}` : ''}` : 'Chọn phòng...' })()
-                  : 'Chọn phòng đang thuê...'}
-              </span>
-            </SelectTrigger>
-            <SelectContent>
-              {rooms.map((r) => (
-                <SelectItem key={r.id} value={r.id}>
-                  {r.name}
-                  {r.tenant ? ` — ${r.tenant.full_name}` : ''}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          {selectedRoom?.tenant && (
-            <p className="text-xs text-muted-foreground">
-              Người thuê: <strong>{selectedRoom.tenant.full_name}</strong> · {selectedRoom.tenant.phone}
-            </p>
-          )}
-        </div>
+    <div className="space-y-3">
+      {/* Toolbar */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <Select value={month.toString()} onValueChange={(v) => setMonth(parseInt(v ?? '1'))}>
+          <SelectTrigger className="w-[110px]">
+            <span className="flex flex-1 text-left text-sm">Tháng {month}</span>
+          </SelectTrigger>
+          <SelectContent>
+            {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
+              <SelectItem key={m} value={m.toString()}>Tháng {m}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
 
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1.5">
-            <Label htmlFor="month">Tháng *</Label>
-            <Select
-              value={form.month.toString()}
-              onValueChange={(v) => setForm({ ...form, month: parseInt(v ?? '1') })}
-            >
-              <SelectTrigger className="w-full">
-                <span className="flex flex-1 text-left text-sm">Tháng {form.month}</span>
-              </SelectTrigger>
-              <SelectContent>
-                {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
-                  <SelectItem key={m} value={m.toString()}>Tháng {m}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="year">Năm *</Label>
-            <Select
-              value={form.year.toString()}
-              onValueChange={(v) => setForm({ ...form, year: parseInt(v ?? String(now.getFullYear())) })}
-            >
-              <SelectTrigger className="w-full">
-                <span className="flex flex-1 text-left text-sm">{form.year}</span>
-              </SelectTrigger>
-              <SelectContent>
-                {[now.getFullYear() - 1, now.getFullYear(), now.getFullYear() + 1].map((y) => (
-                  <SelectItem key={y} value={y.toString()}>{y}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+        <Select value={year.toString()} onValueChange={(v) => setYear(parseInt(v ?? String(now.getFullYear())))}>
+          <SelectTrigger className="w-[85px]">
+            <span className="flex flex-1 text-left text-sm">{year}</span>
+          </SelectTrigger>
+          <SelectContent>
+            {[now.getFullYear() - 1, now.getFullYear(), now.getFullYear() + 1].map((y) => (
+              <SelectItem key={y} value={y.toString()}>{y}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <div className="ml-auto flex items-center gap-3">
+          <span className="text-xs text-muted-foreground hidden sm:block">
+            {includedRows.length} phòng · <strong>{fmt(grandTotal)}đ</strong>
+          </span>
+          <Button size="sm" onClick={handleSubmit} disabled={loading || !includedRows.length}>
+            {loading
+              ? <Loader2 className="h-4 w-4 animate-spin" />
+              : `Tạo ${includedRows.length} hóa đơn`}
+          </Button>
         </div>
       </div>
 
-      <Separator />
+      {/* Table */}
+      <div className="overflow-x-auto rounded-lg border border-border">
+        <table className="border-separate border-spacing-0" style={{ minWidth: 1180 }}>
+          <thead>
+            <tr>
+              <th className={`${TH} sticky left-0 z-20 text-left`} style={{ width: 168, minWidth: 168 }}>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={allChecked}
+                    ref={(el) => { if (el) el.indeterminate = !allChecked && someChecked }}
+                    onChange={(e) =>
+                      setRows((prev) =>
+                        prev.map((r) => existingIds.has(r.room_id) ? r : { ...r, included: e.target.checked })
+                      )
+                    }
+                    className="rounded"
+                  />
+                  Khu · Phòng
+                </div>
+              </th>
+              <th className={TH} style={{ width: 94 }}>Tiền phòng</th>
+              <th className={TH} style={{ width: 76 }}>Đ.đầu</th>
+              <th className={TH} style={{ width: 76 }}>Đ.cuối</th>
+              <th className={TH} style={{ width: 76 }}>đ/kWh</th>
+              <th className={`${TH} text-amber-700 bg-amber-50`} style={{ width: 84 }}>= Điện</th>
+              <th className={TH} style={{ width: 76 }}>N.đầu</th>
+              <th className={TH} style={{ width: 76 }}>N.cuối</th>
+              <th className={TH} style={{ width: 76 }}>đ/m³</th>
+              <th className={`${TH} text-blue-700 bg-blue-50`} style={{ width: 84 }}>= Nước</th>
+              <th className={TH} style={{ width: 76 }}>Rác</th>
+              <th className={TH} style={{ width: 76 }}>Mạng</th>
+              <th className={`${TH} text-green-700 bg-green-50`} style={{ width: 98 }}>Tổng</th>
+              <th className={`${TH} border-r-0`} style={{ width: 128 }}>Ghi chú</th>
+            </tr>
+          </thead>
 
-      {/* Electric */}
-      <div className="space-y-2">
-        <p className="text-sm font-medium">⚡ Điện</p>
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1.5">
-            <Label htmlFor="e_start">Chỉ số đầu kỳ</Label>
-            <Input
-              id="e_start"
-              type="number"
-              placeholder="0"
-              value={form.electric_start}
-              onChange={(e) => setForm({ ...form, electric_start: e.target.value })}
-              min={0}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="e_end">Chỉ số cuối kỳ</Label>
-            <Input
-              id="e_end"
-              type="number"
-              placeholder="0"
-              value={form.electric_end}
-              onChange={(e) => setForm({ ...form, electric_end: e.target.value })}
-              min={0}
-            />
-          </div>
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="e_price">Đơn giá (đ/kWh)</Label>
-          <Input
-            id="e_price"
-            type="number"
-            value={form.electric_price}
-            onChange={(e) => setForm({ ...form, electric_price: e.target.value })}
-            min={0}
-          />
-        </div>
-        {electricUsage > 0 && (
-          <p className="text-xs text-muted-foreground">
-            {electricUsage} kWh × {Number(form.electric_price).toLocaleString('vi-VN')}đ ={' '}
-            <strong>{electricTotal.toLocaleString('vi-VN')}đ</strong>
-          </p>
-        )}
+          <tbody>
+            {rows.map((row, i) => {
+              const isExisting = existingIds.has(row.room_id)
+              const disabled = isExisting || !row.included
+              const elecTotal = Math.round(Math.max(0, n(row.electric_end) - n(row.electric_start)) * n(row.electric_price))
+              const waterTotal = Math.round(Math.max(0, n(row.water_end) - n(row.water_start)) * n(row.water_price))
+              const total = rowTotal(row)
+
+              return (
+                <tr
+                  key={row.room_id}
+                  className={`transition-colors ${disabled ? 'opacity-40' : 'hover:bg-muted/20'}`}
+                >
+                  {/* Sticky: checkbox + room info */}
+                  <td
+                    className={`${TD} sticky left-0 z-10 bg-card px-2 py-1 shadow-[1px_0_0_0_hsl(var(--border))]`}
+                    style={{ width: 168 }}
+                  >
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={row.included && !isExisting}
+                        disabled={isExisting}
+                        onChange={(e) => update(i, 'included', e.target.checked)}
+                        className="rounded shrink-0"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1 flex-wrap">
+                          <p className="font-medium text-xs leading-tight">
+                            {row.zone ? `Khu ${row.zone} · ` : ''}{row.room_name}
+                          </p>
+                          {isExisting && (
+                            <Badge variant="outline" className="text-[10px] px-1 h-4 py-0 leading-none shrink-0">
+                              Đã tạo
+                            </Badge>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground truncate">{row.tenant_name}</p>
+                      </div>
+                    </div>
+                  </td>
+
+                  {/* Tiền phòng */}
+                  <td className={TD}>
+                    <input type="number" value={row.room_price} disabled={isExisting}
+                      onChange={(e) => update(i, 'room_price', Number(e.target.value))}
+                      className={INP} />
+                  </td>
+
+                  {/* Điện đầu */}
+                  <td className={TD}>
+                    <input type="number" value={row.electric_start} disabled={isExisting}
+                      onChange={(e) => update(i, 'electric_start', e.target.value)}
+                      placeholder="—" className={INP} />
+                  </td>
+
+                  {/* Điện cuối */}
+                  <td className={TD}>
+                    <input type="number" value={row.electric_end} disabled={isExisting}
+                      onChange={(e) => update(i, 'electric_end', e.target.value)}
+                      placeholder="—" className={INP} />
+                  </td>
+
+                  {/* Giá điện */}
+                  <td className={TD}>
+                    <input type="number" value={row.electric_price} disabled={isExisting}
+                      onChange={(e) => update(i, 'electric_price', e.target.value)}
+                      className={INP} />
+                  </td>
+
+                  {/* = Điện */}
+                  <td className={`${TD} bg-amber-50 text-right px-2 text-xs font-medium text-amber-800`}>
+                    {elecTotal > 0 ? fmt(elecTotal) : '—'}
+                  </td>
+
+                  {/* Nước đầu */}
+                  <td className={TD}>
+                    <input type="number" value={row.water_start} disabled={isExisting}
+                      onChange={(e) => update(i, 'water_start', e.target.value)}
+                      placeholder="—" className={INP} />
+                  </td>
+
+                  {/* Nước cuối */}
+                  <td className={TD}>
+                    <input type="number" value={row.water_end} disabled={isExisting}
+                      onChange={(e) => update(i, 'water_end', e.target.value)}
+                      placeholder="—" className={INP} />
+                  </td>
+
+                  {/* Giá nước */}
+                  <td className={TD}>
+                    <input type="number" value={row.water_price} disabled={isExisting}
+                      onChange={(e) => update(i, 'water_price', e.target.value)}
+                      className={INP} />
+                  </td>
+
+                  {/* = Nước */}
+                  <td className={`${TD} bg-blue-50 text-right px-2 text-xs font-medium text-blue-800`}>
+                    {waterTotal > 0 ? fmt(waterTotal) : '—'}
+                  </td>
+
+                  {/* Rác */}
+                  <td className={TD}>
+                    <input type="number" value={row.garbage_fee} disabled={isExisting}
+                      onChange={(e) => update(i, 'garbage_fee', Number(e.target.value))}
+                      className={INP} />
+                  </td>
+
+                  {/* Mạng */}
+                  <td className={TD}>
+                    <input type="number" value={row.internet_fee} disabled={isExisting}
+                      onChange={(e) => update(i, 'internet_fee', Number(e.target.value))}
+                      className={INP} />
+                  </td>
+
+                  {/* Tổng */}
+                  <td className={`${TD} bg-green-50 text-right px-2 text-xs font-bold text-green-800`}>
+                    {fmt(total)}
+                  </td>
+
+                  {/* Ghi chú */}
+                  <td className={`${TD} border-r-0`}>
+                    <input type="text" value={row.note} disabled={isExisting}
+                      onChange={(e) => update(i, 'note', e.target.value)}
+                      placeholder="..." className={`${INP} text-left`} />
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+
+          {/* Footer */}
+          <tfoot>
+            <tr>
+              <td className="sticky left-0 z-10 bg-muted/50 border-t border-r border-border px-3 py-2 text-xs font-semibold">
+                {includedRows.length}/{rows.length} phòng
+              </td>
+              <td colSpan={11} className="border-t border-r border-border bg-muted/50" />
+              <td className="border-t border-r border-border bg-green-50 px-2 py-2 text-right text-xs font-bold text-green-800">
+                {fmt(grandTotal)}đ
+              </td>
+              <td className="border-t border-border bg-muted/50" />
+            </tr>
+          </tfoot>
+        </table>
       </div>
 
-      <Separator />
-
-      {/* Water */}
-      <div className="space-y-2">
-        <p className="text-sm font-medium">💧 Nước</p>
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1.5">
-            <Label htmlFor="w_start">Chỉ số đầu kỳ</Label>
-            <Input
-              id="w_start"
-              type="number"
-              placeholder="0"
-              value={form.water_start}
-              onChange={(e) => setForm({ ...form, water_start: e.target.value })}
-              min={0}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="w_end">Chỉ số cuối kỳ</Label>
-            <Input
-              id="w_end"
-              type="number"
-              placeholder="0"
-              value={form.water_end}
-              onChange={(e) => setForm({ ...form, water_end: e.target.value })}
-              min={0}
-            />
-          </div>
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="w_price">Đơn giá (đ/m³)</Label>
-          <Input
-            id="w_price"
-            type="number"
-            value={form.water_price}
-            onChange={(e) => setForm({ ...form, water_price: e.target.value })}
-            min={0}
-          />
-        </div>
-        {waterUsage > 0 && (
-          <p className="text-xs text-muted-foreground">
-            {waterUsage} m³ × {Number(form.water_price).toLocaleString('vi-VN')}đ ={' '}
-            <strong>{waterTotal.toLocaleString('vi-VN')}đ</strong>
-          </p>
-        )}
-      </div>
-
-      <Separator />
-
-      <Separator />
-
-      {/* Garbage & Internet */}
-      <div className="space-y-2">
-        <p className="text-sm font-medium">🗑️ Phí dịch vụ</p>
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1.5">
-            <Label htmlFor="garbage_fee">Tiền rác</Label>
-            <Input
-              id="garbage_fee"
-              type="number"
-              placeholder="0"
-              value={form.garbage_fee}
-              onChange={(e) => setForm({ ...form, garbage_fee: Number(e.target.value) })}
-              min={0}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="internet_fee">Cáp mạng</Label>
-            <Input
-              id="internet_fee"
-              type="number"
-              placeholder="0"
-              value={form.internet_fee}
-              onChange={(e) => setForm({ ...form, internet_fee: Number(e.target.value) })}
-              min={0}
-            />
-          </div>
-        </div>
-      </div>
-
-      <Separator />
-
-      {/* Total preview */}
-      <Card className="bg-gray-50">
-        <CardContent className="px-4 py-3 space-y-1.5">
-          <div className="flex justify-between text-sm">
-            <span className="text-muted-foreground">Tiền phòng</span>
-            <span>{form.room_price.toLocaleString('vi-VN')}đ</span>
-          </div>
-          <div className="flex justify-between text-sm">
-            <span className="text-muted-foreground">Tiền điện</span>
-            <span>{electricTotal.toLocaleString('vi-VN')}đ</span>
-          </div>
-          <div className="flex justify-between text-sm">
-            <span className="text-muted-foreground">Tiền nước</span>
-            <span>{waterTotal.toLocaleString('vi-VN')}đ</span>
-          </div>
-          {form.garbage_fee > 0 && (
-            <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Tiền rác</span>
-              <span>{form.garbage_fee.toLocaleString('vi-VN')}đ</span>
-            </div>
-          )}
-          {form.internet_fee > 0 && (
-            <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Cáp mạng</span>
-              <span>{form.internet_fee.toLocaleString('vi-VN')}đ</span>
-            </div>
-          )}
-          <Separator />
-          <div className="flex justify-between font-bold">
-            <span>Tổng cộng</span>
-            <span className="text-lg">{grandTotal.toLocaleString('vi-VN')}đ</span>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Note */}
-      <div className="space-y-1.5">
-        <Label htmlFor="note">Ghi chú</Label>
-        <Textarea
-          id="note"
-          placeholder="Ghi chú thêm..."
-          value={form.note}
-          onChange={(e) => setForm({ ...form, note: e.target.value })}
-          rows={2}
-        />
-      </div>
-
-      <div className="flex gap-3 pt-2">
-        <Button type="button" variant="outline" className="flex-1" onClick={() => router.back()}>
-          Hủy
-        </Button>
-        <Button type="submit" className="flex-1" disabled={loading || !form.room_id}>
-          {loading ? 'Đang tạo...' : 'Tạo hóa đơn'}
-        </Button>
-      </div>
-    </form>
+      <p className="text-xs text-muted-foreground">
+        Phòng đã có hóa đơn tháng {month}/{year} sẽ bị bỏ qua tự động.
+      </p>
+    </div>
   )
 }

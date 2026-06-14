@@ -89,11 +89,11 @@ export function RoomForm({ room }: Props) {
 
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1.5">
-          <Label htmlFor="floor">Tầng</Label>
+          <Label htmlFor="floor">Khu</Label>
           <Input
             id="floor"
             type="number"
-            placeholder="VD: 1"
+            placeholder="VD: 74"
             value={form.floor}
             onChange={(e) => setForm({ ...form, floor: e.target.value })}
             min={1}

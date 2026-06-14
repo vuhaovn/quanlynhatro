@@ -1,18 +1,17 @@
 import { createClient } from '@/lib/supabase/server'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
-import { Plus, Users } from 'lucide-react'
+import { FileUp, Plus, Users } from 'lucide-react'
 import Link from 'next/link'
 import { Tenant, Room } from '@/types/database'
+import { TenantsList } from './_components/tenants-list'
 
-type TenantWithRoom = Tenant & { room: Pick<Room, 'name'> | null }
+type TenantWithRoom = Tenant & { room: Pick<Room, 'name' | 'floor'> | null }
 
 export default async function TenantsPage() {
   const supabase = await createClient()
   const { data } = await supabase
     .from('tenants')
-    .select('*, room:rooms(name)')
+    .select('*, room:rooms(name, floor)')
     .order('full_name')
 
   const tenants = (data ?? []) as TenantWithRoom[]
@@ -23,12 +22,20 @@ export default async function TenantsPage() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold">Người thuê</h1>
-        <Link href="/tenants/new">
-          <Button size="sm" className="gap-1.5">
-            <Plus className="h-4 w-4" />
-            Thêm
-          </Button>
-        </Link>
+        <div className="flex gap-2">
+          <Link href="/tenants/import">
+            <Button size="sm" variant="outline" className="gap-1.5">
+              <FileUp className="h-4 w-4" />
+              Import
+            </Button>
+          </Link>
+          <Link href="/tenants/new">
+            <Button size="sm" className="gap-1.5">
+              <Plus className="h-4 w-4" />
+              Thêm
+            </Button>
+          </Link>
+        </div>
       </div>
 
       {tenants.length === 0 ? (
@@ -42,57 +49,7 @@ export default async function TenantsPage() {
           </Link>
         </div>
       ) : (
-        <div className="space-y-4">
-          {active.length > 0 && (
-            <div>
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
-                Đang thuê ({active.length})
-              </p>
-              <div className="space-y-3">
-                {active.map((tenant) => (
-                  <Link key={tenant.id} href={`/tenants/${tenant.id}`} className="block">
-                    <Card className="hover:shadow-md transition-shadow cursor-pointer">
-                      <CardContent className="px-4 py-3 flex items-center justify-between">
-                        <div>
-                          <p className="font-medium">{tenant.full_name}</p>
-                          <p className="text-xs text-muted-foreground">{tenant.phone}</p>
-                        </div>
-                        <div className="text-right">
-                          <Badge className="bg-green-500 hover:bg-green-600 text-xs">
-                            {tenant.room?.name ?? 'Chưa gán phòng'}
-                          </Badge>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </Link>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {inactive.length > 0 && (
-            <div>
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
-                Đã rời ({inactive.length})
-              </p>
-              <div className="space-y-3">
-                {inactive.map((tenant) => (
-                  <Link key={tenant.id} href={`/tenants/${tenant.id}`} className="block">
-                    <Card className="hover:shadow-md transition-shadow cursor-pointer opacity-60">
-                      <CardContent className="px-4 py-3 flex items-center justify-between">
-                        <div>
-                          <p className="font-medium">{tenant.full_name}</p>
-                          <p className="text-xs text-muted-foreground">{tenant.phone}</p>
-                        </div>
-                        <Badge variant="outline" className="text-xs">Đã rời</Badge>
-                      </CardContent>
-                    </Card>
-                  </Link>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
+        <TenantsList active={active} inactive={inactive} />
       )}
     </div>
   )

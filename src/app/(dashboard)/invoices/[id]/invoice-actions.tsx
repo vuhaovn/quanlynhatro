@@ -60,7 +60,7 @@ export function InvoiceActions({ invoice }: Pick<Props, 'invoice'>) {
   }
 
   return (
-    <div className="space-y-3 pt-2">
+    <div className="space-y-2 pt-1">
       {!invoice.is_paid ? (
         <Button
           className="w-full gap-2 bg-green-500 hover:bg-green-600"
@@ -81,23 +81,24 @@ export function InvoiceActions({ invoice }: Pick<Props, 'invoice'>) {
         </Button>
       )}
 
-      <Button
-        variant="outline"
-        className="w-full gap-2"
-        onClick={() => window.print()}
-      >
-        <Printer className="h-4 w-4" />
-        In hóa đơn
-      </Button>
-
-      <Button
-        variant="ghost"
-        className="w-full gap-2 text-destructive hover:text-destructive hover:bg-destructive/10"
-        onClick={() => setDeleteOpen(true)}
-      >
-        <Trash2 className="h-4 w-4" />
-        Xóa hóa đơn
-      </Button>
+      <div className="flex gap-2">
+        <Button
+          variant="outline"
+          className="flex-1 gap-2"
+          onClick={() => window.print()}
+        >
+          <Printer className="h-4 w-4" />
+          In
+        </Button>
+        <Button
+          variant="ghost"
+          className="flex-1 gap-2 text-destructive hover:text-destructive hover:bg-destructive/10"
+          onClick={() => setDeleteOpen(true)}
+        >
+          <Trash2 className="h-4 w-4" />
+          Xóa
+        </Button>
+      </div>
 
       <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <DialogContent>
