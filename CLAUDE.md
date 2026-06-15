@@ -70,6 +70,7 @@
   - Checkbox chọn/bỏ từng phòng; cột "= Điện", "= Nước", "Tổng" tự tính real-time
   - Chọn tháng/năm → tự query phòng đã có hóa đơn → đánh dấu "Đã tạo" + disable
   - **Auto-fill từ tháng trước**: khi chọn tháng/năm → query hóa đơn tháng trước → tự điền `electric_start` / `water_start` từ `electric_end` / `water_end`; tự điền `internet_fee` từ hóa đơn tháng trước theo từng phòng (fallback về settings nếu chưa có); `electric_end` / `water_end` reset về trống để nhập mới
+  - Footer bảng hiện tổng **điện** (amber), tổng **nước** (blue), tổng **tiền** (green) — tính real-time theo các phòng được chọn
   - Submit → batch insert, báo kết quả (X tạo / Y lỗi)
 - **Danh sách** (`/invoices`): group theo tháng/năm, tháng mới nhất mở sẵn, các tháng cũ collapsed
   - Filter tabs: Tất cả / Chưa thu / Đã thu
@@ -81,6 +82,7 @@
   - `invoice-cut` class = `height:0; border-top: 1px dashed` — cut line giữa 2 slip, không thêm chiều cao
   - Page dùng `<style>` tag inline để override body/main padding khi in
   - **QR code** in bên phải (cột riêng, `width: 115px screen / 62mm print`), bảng phí bên trái
+- **Thống kê điện/nước tháng hiện tại** trên dashboard: sum `electric_total` + `water_total` từ tất cả hóa đơn tháng hiện tại — hiện khi đã có ít nhất 1 hóa đơn
 - Đánh dấu đã thu / chưa thu
 
 ### 3.4 Cài Đặt

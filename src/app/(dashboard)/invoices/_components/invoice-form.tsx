@@ -119,6 +119,8 @@ export function InvoiceForm({ rooms: allRooms, settings }: Props) {
   const allChecked = availableRows.length > 0 && availableRows.every((r) => r.included)
   const someChecked = availableRows.some((r) => r.included)
   const grandTotal = includedRows.reduce((sum, r) => sum + rowTotal(r), 0)
+  const grandElec = includedRows.reduce((sum, r) => sum + Math.round(Math.max(0, n(r.electric_end) - n(r.electric_start)) * n(r.electric_price)), 0)
+  const grandWater = includedRows.reduce((sum, r) => sum + Math.round(Math.max(0, n(r.water_end) - n(r.water_start)) * n(r.water_price)), 0)
 
   async function handleSubmit() {
     if (!includedRows.length) { toast.error('Không có phòng nào được chọn'); return }
@@ -374,7 +376,16 @@ export function InvoiceForm({ rooms: allRooms, settings }: Props) {
               <td className="sticky left-0 z-10 bg-muted/50 border-t border-r border-border px-3 py-2 text-xs font-semibold">
                 {includedRows.length}/{rows.length} phòng
               </td>
-              <td colSpan={11} className="border-t border-r border-border bg-muted/50" />
+              <td className="border-t border-r border-border bg-muted/50" />
+              <td colSpan={3} className="border-t border-r border-border bg-muted/50" />
+              <td className="border-t border-r border-border bg-amber-50 px-2 py-2 text-right text-xs font-bold text-amber-800">
+                {grandElec > 0 ? fmt(grandElec) : '—'}
+              </td>
+              <td colSpan={3} className="border-t border-r border-border bg-muted/50" />
+              <td className="border-t border-r border-border bg-blue-50 px-2 py-2 text-right text-xs font-bold text-blue-800">
+                {grandWater > 0 ? fmt(grandWater) : '—'}
+              </td>
+              <td colSpan={2} className="border-t border-r border-border bg-muted/50" />
               <td className="border-t border-r border-border bg-green-50 px-2 py-2 text-right text-xs font-bold text-green-800">
                 {fmt(grandTotal)}đ
               </td>
