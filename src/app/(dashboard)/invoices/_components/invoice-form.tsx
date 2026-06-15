@@ -80,14 +80,34 @@ export function InvoiceForm({ rooms: allRooms, settings }: Props) {
 
   useEffect(() => {
     const supabase = createClient()
-    supabase
-      .from('invoices')
-      .select('room_id')
-      .eq('month', month)
-      .eq('year', year)
-      .then(({ data }) => {
-        setExistingIds(new Set((data ?? []).map((d: { room_id: string }) => d.room_id)))
-      })
+    const prevMonth = month === 1 ? 12 : month - 1
+    const prevYear = month === 1 ? year - 1 : year
+
+    Promise.all([
+      supabase.from('invoices').select('room_id').eq('month', month).eq('year', year),
+      supabase.from('invoices').select('room_id, electric_end, water_end, internet_fee').eq('month', prevMonth).eq('year', prevYear),
+    ]).then(([{ data: current }, { data: prev }]) => {
+      setExistingIds(new Set((current ?? []).map((d: { room_id: string }) => d.room_id)))
+
+      const prevMap = new Map<string, { electric_end: number | null; water_end: number | null; internet_fee: number | null }>()
+      for (const inv of (prev ?? []) as { room_id: string; electric_end: number | null; water_end: number | null; internet_fee: number | null }[]) {
+        prevMap.set(inv.room_id, { electric_end: inv.electric_end, water_end: inv.water_end, internet_fee: inv.internet_fee })
+      }
+
+      setRows((current) =>
+        current.map((row) => {
+          const p = prevMap.get(row.room_id)
+          return {
+            ...row,
+            electric_start: p?.electric_end != null ? p.electric_end.toString() : '',
+            electric_end: '',
+            water_start: p?.water_end != null ? p.water_end.toString() : '',
+            water_end: '',
+            internet_fee: p?.internet_fee != null ? p.internet_fee : row.internet_fee,
+          }
+        })
+      )
+    })
   }, [month, year])
 
   function update<K extends keyof InvoiceRow>(i: number, k: K, v: InvoiceRow[K]) {

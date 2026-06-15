@@ -69,6 +69,7 @@
   - Cột sticky trái (Khu · Phòng + tên người thuê) + scroll ngang cho các cột số liệu
   - Checkbox chọn/bỏ từng phòng; cột "= Điện", "= Nước", "Tổng" tự tính real-time
   - Chọn tháng/năm → tự query phòng đã có hóa đơn → đánh dấu "Đã tạo" + disable
+  - **Auto-fill từ tháng trước**: khi chọn tháng/năm → query hóa đơn tháng trước → tự điền `electric_start` / `water_start` từ `electric_end` / `water_end`; tự điền `internet_fee` từ hóa đơn tháng trước theo từng phòng (fallback về settings nếu chưa có); `electric_end` / `water_end` reset về trống để nhập mới
   - Submit → batch insert, báo kết quả (X tạo / Y lỗi)
 - **Danh sách** (`/invoices`): group theo tháng/năm, tháng mới nhất mở sẵn, các tháng cũ collapsed
   - Filter tabs: Tất cả / Chưa thu / Đã thu
