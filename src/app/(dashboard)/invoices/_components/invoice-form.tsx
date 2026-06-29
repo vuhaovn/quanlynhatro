@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
@@ -38,6 +38,55 @@ interface Props {
   settings: Settings | null
 }
 
+type DraftFields = Pick<InvoiceRow,
+  'electric_start' | 'electric_end' | 'electric_price' |
+  'water_start' | 'water_end' | 'water_price' |
+  'garbage_fee' | 'internet_fee' | 'note' | 'included'
+>
+
+interface Draft {
+  savedAt: string
+  data: Record<string, DraftFields>
+}
+
+function draftKey(month: number, year: number) {
+  return `invoice_draft_${month}_${year}`
+}
+
+function saveDraftToStorage(month: number, year: number, rows: InvoiceRow[]) {
+  const data: Record<string, DraftFields> = {}
+  for (const row of rows) {
+    data[row.room_id] = {
+      electric_start: row.electric_start,
+      electric_end: row.electric_end,
+      electric_price: row.electric_price,
+      water_start: row.water_start,
+      water_end: row.water_end,
+      water_price: row.water_price,
+      garbage_fee: row.garbage_fee,
+      internet_fee: row.internet_fee,
+      note: row.note,
+      included: row.included,
+    }
+  }
+  try {
+    localStorage.setItem(draftKey(month, year), JSON.stringify({ savedAt: new Date().toISOString(), data } satisfies Draft))
+  } catch { /* quota exceeded — ignore */ }
+}
+
+function loadDraftFromStorage(month: number, year: number): Draft | null {
+  try {
+    const raw = localStorage.getItem(draftKey(month, year))
+    return raw ? (JSON.parse(raw) as Draft) : null
+  } catch {
+    return null
+  }
+}
+
+function removeDraftFromStorage(month: number, year: number) {
+  try { localStorage.removeItem(draftKey(month, year)) } catch { /* ignore */ }
+}
+
 function n(v: string | number) { return Number(v) || 0 }
 function fmt(v: number) { return v.toLocaleString('vi-VN') }
 
@@ -54,6 +103,11 @@ export function InvoiceForm({ rooms: allRooms, settings }: Props) {
   const [year, setYear] = useState(now.getFullYear())
   const [loading, setLoading] = useState(false)
   const [existingIds, setExistingIds] = useState<Set<string>>(new Set())
+  const [draftSavedAt, setDraftSavedAt] = useState<Date | null>(null)
+
+  // Only save draft when user has actually edited — prevents saving during auto-fill setRows
+  const userEditedRef = useRef(false)
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const rooms = allRooms.filter((r) => r.tenant !== null)
 
@@ -79,6 +133,10 @@ export function InvoiceForm({ rooms: allRooms, settings }: Props) {
   )
 
   useEffect(() => {
+    // Reset edit flag and cancel any pending save when month/year changes
+    userEditedRef.current = false
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+
     const supabase = createClient()
     const prevMonth = month === 1 ? 12 : month - 1
     const prevYear = month === 1 ? year - 1 : year
@@ -94,10 +152,12 @@ export function InvoiceForm({ rooms: allRooms, settings }: Props) {
         prevMap.set(inv.room_id, { electric_end: inv.electric_end, water_end: inv.water_end, internet_fee: inv.internet_fee })
       }
 
+      const draft = loadDraftFromStorage(month, year)
+
       setRows((current) =>
         current.map((row) => {
           const p = prevMap.get(row.room_id)
-          return {
+          const base = {
             ...row,
             electric_start: p?.electric_end != null ? p.electric_end.toString() : '',
             electric_end: '',
@@ -105,13 +165,44 @@ export function InvoiceForm({ rooms: allRooms, settings }: Props) {
             water_end: '',
             internet_fee: p?.internet_fee != null ? p.internet_fee : row.internet_fee,
           }
+          if (!draft) return base
+          const d = draft.data[row.room_id]
+          return d ? { ...base, ...d } : base
         })
       )
+
+      if (draft) {
+        setDraftSavedAt(new Date(draft.savedAt))
+        toast.info(`Đã khôi phục bản nháp tháng ${month}/${year}`)
+      } else {
+        setDraftSavedAt(null)
+      }
     })
   }, [month, year])
 
+  // Debounced draft save — only fires after user edits
+  useEffect(() => {
+    if (!userEditedRef.current) return
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+    saveTimerRef.current = setTimeout(() => {
+      saveDraftToStorage(month, year, rows)
+      setDraftSavedAt(new Date())
+    }, 800)
+    return () => {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+    }
+  }, [rows, month, year])
+
   function update<K extends keyof InvoiceRow>(i: number, k: K, v: InvoiceRow[K]) {
+    userEditedRef.current = true
     setRows((prev) => prev.map((r, idx) => (idx === i ? { ...r, [k]: v } : r)))
+  }
+
+  function handleClearDraft() {
+    removeDraftFromStorage(month, year)
+    setDraftSavedAt(null)
+    userEditedRef.current = false
+    toast.success('Đã xóa bản nháp')
   }
 
   const availableRows = rows.filter((r) => !existingIds.has(r.room_id))
@@ -152,6 +243,7 @@ export function InvoiceForm({ rooms: allRooms, settings }: Props) {
 
     setLoading(false)
     if (created > 0) {
+      removeDraftFromStorage(month, year)
       toast.success(`Đã tạo ${created} hóa đơn${failed ? ` · ${failed} lỗi` : ''}`)
       router.refresh()
       router.push('/invoices')
@@ -191,6 +283,16 @@ export function InvoiceForm({ rooms: allRooms, settings }: Props) {
         </Select>
 
         <div className="ml-auto flex items-center gap-3">
+          {draftSavedAt && (
+            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+              <span>
+                Nháp {draftSavedAt.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
+              </span>
+              <Button size="sm" variant="outline" onClick={handleClearDraft}>
+                Xóa bản nháp
+              </Button>
+            </div>
+          )}
           <span className="text-xs text-muted-foreground hidden sm:block">
             {includedRows.length} phòng · <strong>{fmt(grandTotal)}đ</strong>
           </span>
@@ -204,7 +306,7 @@ export function InvoiceForm({ rooms: allRooms, settings }: Props) {
 
       {/* Table */}
       <div className="overflow-x-auto rounded-lg border border-border">
-        <table className="border-separate border-spacing-0" style={{ minWidth: 1180 }}>
+        <table className="border-separate border-spacing-0" style={{ minWidth: 1330 }}>
           <thead>
             <tr>
               <th className={`${TH} sticky left-0 z-20 text-left`} style={{ width: 168, minWidth: 168 }}>
@@ -213,11 +315,12 @@ export function InvoiceForm({ rooms: allRooms, settings }: Props) {
                     type="checkbox"
                     checked={allChecked}
                     ref={(el) => { if (el) el.indeterminate = !allChecked && someChecked }}
-                    onChange={(e) =>
+                    onChange={(e) => {
+                      userEditedRef.current = true
                       setRows((prev) =>
                         prev.map((r) => existingIds.has(r.room_id) ? r : { ...r, included: e.target.checked })
                       )
-                    }
+                    }}
                     className="rounded"
                   />
                   Khu · Phòng
@@ -226,10 +329,12 @@ export function InvoiceForm({ rooms: allRooms, settings }: Props) {
               <th className={TH} style={{ width: 94 }}>Tiền phòng</th>
               <th className={TH} style={{ width: 76 }}>Đ.đầu</th>
               <th className={TH} style={{ width: 76 }}>Đ.cuối</th>
+              <th className={`${TH} text-amber-700`} style={{ width: 70 }}>kWh</th>
               <th className={TH} style={{ width: 76 }}>đ/kWh</th>
               <th className={`${TH} text-amber-700 bg-amber-50`} style={{ width: 84 }}>= Điện</th>
               <th className={TH} style={{ width: 76 }}>N.đầu</th>
               <th className={TH} style={{ width: 76 }}>N.cuối</th>
+              <th className={`${TH} text-blue-700`} style={{ width: 70 }}>m³</th>
               <th className={TH} style={{ width: 76 }}>đ/m³</th>
               <th className={`${TH} text-blue-700 bg-blue-50`} style={{ width: 84 }}>= Nước</th>
               <th className={TH} style={{ width: 76 }}>Rác</th>
@@ -302,6 +407,13 @@ export function InvoiceForm({ rooms: allRooms, settings }: Props) {
                       placeholder="—" className={INP} />
                   </td>
 
+                  {/* kWh tiêu thụ */}
+                  <td className="border-b border-r border-border text-center px-1 text-xs font-medium text-amber-700">
+                    {n(row.electric_end) > 0 && n(row.electric_start) >= 0 && n(row.electric_end) > n(row.electric_start)
+                      ? fmt(n(row.electric_end) - n(row.electric_start))
+                      : '—'}
+                  </td>
+
                   {/* Giá điện */}
                   <td className={TD}>
                     <input type="number" value={row.electric_price} disabled={isExisting}
@@ -326,6 +438,13 @@ export function InvoiceForm({ rooms: allRooms, settings }: Props) {
                     <input type="number" value={row.water_end} disabled={isExisting}
                       onChange={(e) => update(i, 'water_end', e.target.value)}
                       placeholder="—" className={INP} />
+                  </td>
+
+                  {/* m³ tiêu thụ */}
+                  <td className="border-b border-r border-border text-center px-1 text-xs font-medium text-blue-700">
+                    {n(row.water_end) > 0 && n(row.water_start) >= 0 && n(row.water_end) > n(row.water_start)
+                      ? fmt(n(row.water_end) - n(row.water_start))
+                      : '—'}
                   </td>
 
                   {/* Giá nước */}
@@ -378,10 +497,12 @@ export function InvoiceForm({ rooms: allRooms, settings }: Props) {
               </td>
               <td className="border-t border-r border-border bg-muted/50" />
               <td colSpan={3} className="border-t border-r border-border bg-muted/50" />
+              <td className="border-t border-r border-border bg-muted/50" />
               <td className="border-t border-r border-border bg-amber-50 px-2 py-2 text-right text-xs font-bold text-amber-800">
                 {grandElec > 0 ? fmt(grandElec) : '—'}
               </td>
               <td colSpan={3} className="border-t border-r border-border bg-muted/50" />
+              <td className="border-t border-r border-border bg-muted/50" />
               <td className="border-t border-r border-border bg-blue-50 px-2 py-2 text-right text-xs font-bold text-blue-800">
                 {grandWater > 0 ? fmt(grandWater) : '—'}
               </td>

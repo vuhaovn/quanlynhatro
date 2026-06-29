@@ -204,18 +204,26 @@ export function InvoiceList({ invoices: initial }: { invoices: InvoiceWithRoom[]
                               {fmt(inv.total_amount)}đ
                             </span>
 
-                            {/* Toggle paid button */}
-                            <button
-                              onClick={() => togglePaid(inv.id, isPaid)}
-                              disabled={isLoading}
-                              className={`text-xs px-2 py-0.5 rounded-full border transition-colors min-w-[62px] text-center disabled:opacity-50 disabled:cursor-not-allowed ${
-                                isPaid
-                                  ? 'bg-green-100 text-green-700 border-green-200 hover:bg-red-50 hover:text-red-500 hover:border-red-200'
-                                  : 'bg-orange-50 text-orange-600 border-orange-200 hover:bg-green-100 hover:text-green-700 hover:border-green-200'
-                              }`}
-                            >
-                              {isLoading ? '...' : isPaid ? 'Đã thu' : 'Chưa thu'}
-                            </button>
+                            {isPaid ? (
+                              <button
+                                onClick={() => togglePaid(inv.id, true)}
+                                disabled={isLoading}
+                                className="text-xs px-2 py-0.5 rounded-full border bg-green-100 text-green-700 border-green-200 hover:bg-orange-50 hover:text-orange-600 hover:border-orange-200 transition-colors min-w-[62px] text-center disabled:opacity-50"
+                              >
+                                {isLoading ? '...' : 'Đã thu'}
+                              </button>
+                            ) : (
+                              <>
+                                <span className="text-xs text-orange-600 font-medium">Chưa thu</span>
+                                <button
+                                  onClick={() => togglePaid(inv.id, false)}
+                                  disabled={isLoading}
+                                  className="text-xs px-2.5 py-0.5 rounded-full border bg-green-500 text-white border-green-600 hover:bg-green-600 transition-colors min-w-[62px] text-center disabled:opacity-50 font-medium"
+                                >
+                                  {isLoading ? '...' : '✓ Đã thu'}
+                                </button>
+                              </>
+                            )}
                           </div>
                         </div>
                       )
