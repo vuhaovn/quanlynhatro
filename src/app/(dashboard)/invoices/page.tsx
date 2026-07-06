@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { Invoice, Room } from '@/types/database'
 import { PrintButton } from './_components/print-button'
 import { InvoiceList } from './_components/invoice-list'
+import { ExcelExportButton } from './_components/excel-export-button'
 
 type InvoiceWithRoom = Invoice & { room: Pick<Room, 'name' | 'floor'> | null }
 
@@ -23,6 +24,7 @@ export default async function InvoicesPage() {
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold">Hóa đơn</h1>
         <div className="flex items-center gap-2">
+          <ExcelExportButton invoices={invoices} />
           <PrintButton />
           <Link href="/invoices/new">
             <Button size="sm" className="gap-1.5">
