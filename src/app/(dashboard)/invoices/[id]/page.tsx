@@ -163,7 +163,7 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
           <p className="text-gray-600">Tháng {invoice.month} năm {invoice.year}</p>
         </div>
 
-        <div className="grid grid-cols-2 gap-4 mb-4 text-sm">
+        <div className="grid grid-cols-2 gap-4 mb-4 text-lg">
           <div>
             <p><strong>Phòng:</strong> {roomLabel}</p>
             <p><strong>Người thuê:</strong> {tenant?.full_name}</p>
@@ -180,7 +180,7 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
 
         <Separator className="my-4" />
 
-        <table className="w-full text-sm mb-4">
+        <table className="w-full text-lg mb-4">
           <tbody>
             <tr>
               <td className="py-1">Tiền phòng</td>
@@ -212,7 +212,7 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
             )}
           </tbody>
           <tfoot>
-            <tr className="border-t font-bold text-base">
+            <tr className="border-t font-bold text-lg">
               <td className="pt-2">TỔNG CỘNG</td>
               <td className="pt-2 text-right">{fmt(invoice.total_amount)}đ</td>
             </tr>
@@ -225,9 +225,9 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
             <img
               src={settings.qr_image_url}
               alt="QR"
-              style={{ width: '130px', height: '130px', objectFit: 'contain', flexShrink: 0 }}
+              style={{ width: '150px', height: '150px', objectFit: 'contain', flexShrink: 0 }}
             />
-            <div style={{ fontSize: '13px', lineHeight: '1.7' }}>
+            <div style={{ fontSize: '14px', lineHeight: '1.7' }}>
               <p style={{ fontWeight: 'bold', marginBottom: '4px' }}>Chuyển khoản:</p>
               {settings.bank_name && <p>{settings.bank_name}</p>}
               {settings.bank_account && <p>STK: <strong>{settings.bank_account}</strong></p>}
@@ -238,7 +238,7 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
 
         {invoice.note && <p className="text-gray-600 italic mb-4 mt-3">Ghi chú: {invoice.note}</p>}
 
-        <p className="text-center text-gray-500 text-xs mt-8">
+        <p className="text-center text-gray-500 text-sm mt-8">
           Ngày in: {new Date().toLocaleDateString('vi-VN')}
         </p>
       </div>

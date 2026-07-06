@@ -104,7 +104,7 @@ export default async function PrintInvoicesPage({
                     <div style={{ display: 'flex', gap: '10px', alignItems: 'stretch' }}>
                       {/* Fee table */}
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '16px' }}>
                           <tbody>
                             <tr>
                               <td style={{ padding: '2px 0' }}>Tiền phòng</td>
@@ -148,7 +148,7 @@ export default async function PrintInvoicesPage({
                           <tfoot>
                             <tr style={{ borderTop: '2px solid #111' }}>
                               <td style={{ paddingTop: '5px', fontWeight: 'bold', fontSize: '14px' }}>TỔNG CỘNG</td>
-                              <td style={{ textAlign: 'right', paddingTop: '5px', fontWeight: 'bold', fontSize: '14px', whiteSpace: 'nowrap' }}>
+                              <td style={{ textAlign: 'right', paddingTop: '5px', fontWeight: 'bold', fontSize: '16px', whiteSpace: 'nowrap' }}>
                                 {invoice.total_amount.toLocaleString('vi-VN')}đ
                               </td>
                             </tr>
