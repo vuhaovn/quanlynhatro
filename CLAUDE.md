@@ -78,6 +78,11 @@
 - In hóa đơn đơn lẻ (`window.print()`) — `@page { margin: 0 }` + `body { padding: 12mm }`
 - **In hàng loạt**: `/invoices/print?month=X&year=Y` — 2 hóa đơn/tờ A4, tự động mở dialog in
   - Nút "In tháng" trên trang danh sách → dialog chọn tháng/năm → mở tab mới
+- **In hóa đơn đã chọn**: checkbox mode trong `invoice-list` → sticky bottom bar → mở `/invoices/print?ids=id1,id2,...`
+  - Print page nhận `?ids=` thì fetch theo `.in("id", [...])`, nhận `?month=&year=` thì fetch theo tháng
+- **Xuất Excel** (`ExcelExportButton`): nút → dialog chọn tháng/năm → xuất `.xlsx`
+  - Dữ liệu giữ nguyên số (không `fmt()`), dùng `cell.z = '#,##0'` để format hiển thị trong Excel
+  - Dùng generated columns (`electric_total`, `water_total`, `total_amount`) thay vì tính lại
   - CSS class `invoice-slip` (**148mm** height) + `invoice-pair` (page-break)
   - `invoice-cut` class = `height:0; border-top: 1px dashed` — cut line giữa 2 slip, không thêm chiều cao
   - Page dùng `<style>` tag inline để override body/main padding khi in
@@ -201,10 +206,12 @@ src/
 │       │   ├── print/                    # In hàng loạt (?month=&year=)
 │       │   │   ├── page.tsx             # Server: 2 hóa đơn/A4, QR bên phải
 │       │   │   └── print-trigger.tsx    # Client, auto window.print()
+│       │   ├── _utils.ts                 # Shared: InvoiceWithRoom type + sortInvoices()
 │       │   └── _components/
 │       │       ├── invoice-form.tsx      # Client: bảng Excel-like, bulk create
-│       │       ├── invoice-list.tsx      # Client: group theo tháng, filter tabs
-│       │       └── print-button.tsx     # Dialog chọn tháng/năm → mở tab print
+│       │       ├── invoice-list.tsx      # Client: group theo tháng, filter tabs, checkbox print
+│       │       ├── print-button.tsx      # Dialog chọn tháng/năm → mở tab print
+│       │       └── excel-export-button.tsx # Dialog chọn tháng/năm → xuất .xlsx
 │       └── settings/                     # Cài đặt
 │           ├── page.tsx
 │           ├── settings-form.tsx         # Giá + bank info + QR upload
@@ -279,6 +286,15 @@ src/
   USING (bucket_id = 'qr-images' AND auth.uid()::text = (storage.foldername(name))[1])
   ```
 - URL lưu vào `settings.qr_image_url` qua upsert; bust cache bằng `?t={Date.now()}` khi preview
+
+### Invoices — shared utils
+- `invoices/_utils.ts` export `type InvoiceWithRoom` và `sortInvoices<T>()` — dùng chung cho `invoice-list`, `print/page`, `excel-export-button`, `page.tsx`
+- Supabase không tự sort → luôn gọi `sortInvoices()` trước khi render hoặc export (sort theo `floor` → tên phòng numeric)
+
+### Excel Export (`xlsx` library)
+- Money columns phải là **số thực** (không dùng `toLocaleString`) để Excel SUM được
+- Dùng `cell.z = '#,##0'; delete cell.w` để format hiển thị có dấu phân cách ngàn
+- Dùng generated columns từ DB (`electric_total`, `water_total`, `total_amount`) — không tính lại thủ công
 
 ### Import Excel
 - Dùng thư viện `xlsx` (đã cài)

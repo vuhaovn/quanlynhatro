@@ -4,144 +4,159 @@ import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Download } from 'lucide-react'
 import * as XLSX from 'xlsx'
-import { Invoice, Room } from '@/types/database'
-
-// Import các Select component có sẵn của dự án
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogFooter,
+} from '@/components/ui/dialog'
+import { Label } from '@/components/ui/label'
 import {
   Select,
   SelectTrigger,
   SelectContent,
   SelectItem,
-} from '@/components/ui/select' // Bạn điều chỉnh lại đường dẫn này cho đúng với dự án nhé
+} from '@/components/ui/select'
+import { InvoiceWithRoom, sortInvoices } from '../_utils'
 
-type InvoiceWithRoom = Invoice & { room: Pick<Room, 'name' | 'floor'> | null }
-
-interface ExcelExportButtonProps {
-  invoices: InvoiceWithRoom[]
-}
-
-type ExcelRowData = {
-  'Khu · Phòng': string;
-  'Tiền phòng': number | string;
-  'Đ.đầu': number | string;
-  'Đ.cuối': number | string;
-  'kWh': number | string;
-  'đ/kWh': number | string;
-  '= Điện': number | string;
-  'N.đầu': number | string;
-  'N.cuối': number | string;
-  'm³': number | string;
-  'đ/m³': number | string;
-  '= Nước': number | string;
-  'Rác': number | string;
-  'Mạng': number | string;
-  'Tổng': number | string;
-  'Ghi chú': string;
+function roomLabel(room: InvoiceWithRoom['room']): string {
+  if (!room) return ''
+  return room.floor ? `Khu ${room.floor} · ${room.name}` : room.name
 }
 
 function n(v: string | number) { return Number(v) || 0 }
-function fmt(v: number) { return v.toLocaleString('vi-VN') }
 
-function rowTotal(row: InvoiceWithRoom) {
-  const elec = Math.round(Math.max(0, n(row.electric_end) - n(row.electric_start)) * n(row.electric_price))
-  const water = Math.round(Math.max(0, n(row.water_end) - n(row.water_start)) * n(row.water_price))
-  return row.room_price + elec + water + row.garbage_fee + row.internet_fee
-}
+export function ExcelExportButton({ invoices }: { invoices: InvoiceWithRoom[] }) {
+  const now = new Date()
+  const [month, setMonth] = useState(now.getMonth() + 1)
+  const [year, setYear] = useState(now.getFullYear())
 
-export function ExcelExportButton({ invoices }: ExcelExportButtonProps) {
-  // Gom các cặp Tháng/Năm duy nhất xuất hiện trong dữ liệu hóa đơn (Ví dụ: "05/2026", "04/2026")
-  const availableMonths = Array.from(
-    new Set(invoices.map((inv) => `${String(inv.month).padStart(2, '0')}/${inv.year}`))
-  ).sort((a, b) => b.localeCompare(a)) // Sắp xếp tháng mới nhất lên đầu
-
-  // State lưu giá trị Tháng/Năm được chọn (mặc định là tháng gần nhất)
-  const [selectedMonth, setSelectedMonth] = useState<string>(availableMonths[0] || '')
+  const years = [now.getFullYear() - 1, now.getFullYear(), now.getFullYear() + 1]
 
   const handleExport = () => {
-    if (!selectedMonth) return
+    const filtered = sortInvoices(invoices.filter((inv) => inv.month === month && inv.year === year))
 
-    const [monthStr, yearStr] = selectedMonth.split('/')
-    const month = parseInt(monthStr, 10)
-    const year = parseInt(yearStr, 10)
-
-    // Lọc dữ liệu theo Tháng và Năm đã chọn
-    const filteredData = invoices.filter((inv) => inv.month === month && inv.year === year)
-
-    // Map lại data JSON thành các cột tiếng Việt hiển thị trong file Excel
-    const excelData: ExcelRowData[] = filteredData.map((inv) => ({
-      'Khu · Phòng': inv.room_id ? `Khu ${inv.room.floor} · ${inv.room.name}` : '',
-      'Tiền phòng': fmt(inv.room_price || 0),
-      'Đ.đầu': inv.electric_start || 0,
-      'Đ.cuối': inv.electric_end || 0,
-      'kWh': inv.electric_end && inv.electric_start ? (n(inv.electric_end) - n(inv.electric_start)) : 0,
-      'đ/kWh': inv.electric_price || 0,
-      '= Điện': fmt(Math.round(Math.max(0, n(inv.electric_end) - n(inv.electric_start)) * n(inv.electric_price))),
-      'N.đầu': inv.water_start || 0,
-      'N.cuối': inv.water_end || 0,
-      'm³': inv.water_end && inv.water_start ? (n(inv.water_end) - n(inv.water_start)) : 0,
-      'đ/m³': inv.water_price || 0,
-      '= Nước': fmt(Math.round(Math.max(0, n(inv.water_end) - n(inv.water_start)) * n(inv.water_price))),
-      'Rác': inv.garbage_fee || 0,
-      'Mạng': inv.internet_fee || 0,
-      'Tổng': fmt(rowTotal(inv)),
+    const rows = filtered.map((inv) => ({
+      'Khu · Phòng': roomLabel(inv.room),
+      'Tiền phòng': inv.room_price,
+      'Đ.đầu': inv.electric_start,
+      'Đ.cuối': inv.electric_end,
+      'kWh': Math.max(0, n(inv.electric_end) - n(inv.electric_start)),
+      'đ/kWh': inv.electric_price,
+      '= Điện': inv.electric_total,
+      'N.đầu': inv.water_start,
+      'N.cuối': inv.water_end,
+      'm³': Math.max(0, n(inv.water_end) - n(inv.water_start)),
+      'đ/m³': inv.water_price,
+      '= Nước': inv.water_total,
+      'Rác': inv.garbage_fee,
+      'Mạng': inv.internet_fee,
+      'Tổng': inv.total_amount,
       'Ghi chú': inv.note || '',
     }))
 
-    const grandTotal = filteredData.reduce((sum, r) => sum + rowTotal(r), 0)
-    const grandElec = filteredData.reduce((sum, r) => sum + Math.round(Math.max(0, n(r.electric_end) - n(r.electric_start)) * n(r.electric_price)), 0)
-    const grandWater = filteredData.reduce((sum, r) => sum + Math.round(Math.max(0, n(r.water_end) - n(r.water_start)) * n(r.water_price)), 0)
+    const grandRoom  = filtered.reduce((s, r) => s + r.room_price, 0)
+    const grandKwh   = filtered.reduce((s, r) => s + Math.max(0, n(r.electric_end) - n(r.electric_start)), 0)
+    const grandElec  = filtered.reduce((s, r) => s + r.electric_total, 0)
+    const grandM3    = filtered.reduce((s, r) => s + Math.max(0, n(r.water_end) - n(r.water_start)), 0)
+    const grandWater = filtered.reduce((s, r) => s + r.water_total, 0)
+    const grandTotal = filtered.reduce((s, r) => s + r.total_amount, 0)
 
-    // Thêm một dòng mới hoàn toàn ở dưới cùng
-    excelData.push({
+    rows.push({
       'Khu · Phòng': 'TỔNG CỘNG',
-      'Tiền phòng': '',
-      'Đ.đầu': '',
-      'Đ.cuối': '',
-      'kWh': '',
-      'đ/kWh': '',
-      '= Điện': fmt(grandElec), // Hiển thị tổng tiền điện ngay dưới cột '= Điện'
-      'N.đầu': '',
-      'N.cuối': '',
-      'm³': '',
-      'đ/m³': '',
-      '= Nước': fmt(grandWater),    // Hiển thị tổng tiền nước ngay dưới cột '= Nước'
-      'Rác': '',
-      'Mạng': '',
-      'Tổng': fmt(grandTotal),        // Hiển thị tổng tiền tất cả ngay dưới cột 'Tổng'
+      'Tiền phòng': grandRoom,
+      'Đ.đầu': 0,
+      'Đ.cuối': 0,
+      'kWh': grandKwh,
+      'đ/kWh': 0,
+      '= Điện': grandElec,
+      'N.đầu': 0,
+      'N.cuối': 0,
+      'm³': grandM3,
+      'đ/m³': 0,
+      '= Nước': grandWater,
+      'Rác': 0,
+      'Mạng': 0,
+      'Tổng': grandTotal,
       'Ghi chú': '',
-    }) // Ép kiểu 'as any' để tránh báo lỗi TypeScript cho các ô trống chuỗi rỗng
-    // -----------------------------------------------
+    })
 
-    // Thực hiện export file Excel qua thư viện xlsx
-    const worksheet = XLSX.utils.json_to_sheet(excelData)
+    const monthStr = `${String(month).padStart(2, '0')}_${year}`
+    const worksheet = XLSX.utils.json_to_sheet(rows)
+
+    // Apply VND number format (#,##0) to money columns — keeps them as real numbers
+    // so Excel SUM still works, but displays with thousand separators
+    const moneyCols = new Set(['B', 'F', 'G', 'K', 'L', 'M', 'N', 'O'])
+    const range = XLSX.utils.decode_range(worksheet['!ref'] ?? 'A1')
+    for (let R = range.s.r + 1; R <= range.e.r; R++) {
+      for (const col of moneyCols) {
+        const addr = `${col}${R + 1}`
+        const cell = worksheet[addr]
+        if (cell && cell.t === 'n') {
+          cell.z = '#,##0'
+          delete cell.w
+        }
+      }
+    }
+
     const workbook = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(workbook, worksheet, `Tháng ${selectedMonth.replace('/', '-')}`)
-
-    XLSX.writeFile(workbook, `Hoa_Don_Thang_${selectedMonth.replace('/', '_')}.xlsx`)
+    XLSX.utils.book_append_sheet(workbook, worksheet, `Tháng ${month}-${year}`)
+    XLSX.writeFile(workbook, `Hoa_Don_Thang_${monthStr}.xlsx`)
   }
 
-  if (availableMonths.length === 0) return null
-
   return (
-    <div className="flex items-center gap-2">
-      {/* Sử dụng cấu trúc Select chuẩn của dự án bạn */}
-      <Select value={selectedMonth} onValueChange={(v) => setSelectedMonth(v ?? '')}>
-        <SelectTrigger className="h-9">
-          <span className="flex flex-1 text-left text-sm">Tháng {selectedMonth}</span>
-        </SelectTrigger>
-        <SelectContent>
-          {availableMonths.map((m) => (
-            <SelectItem key={m} value={m}>
-              Tháng {m}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-
-      <Button variant="outline" size="sm" className="gap-1.5 h-9" onClick={handleExport}>
+    <Dialog>
+      <DialogTrigger
+        render={
+          <Button variant="outline" size="sm" className="gap-1.5" />
+        }
+      >
         <Download className="h-4 w-4" />
-        Xuất Excel
-      </Button>
-    </div>
+        <span className="hidden sm:inline">Xuất Excel</span>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Xuất Excel theo tháng</DialogTitle>
+        </DialogHeader>
+
+        <div className="grid grid-cols-2 gap-3 py-2">
+          <div className="space-y-1.5">
+            <Label>Tháng</Label>
+            <Select value={month.toString()} onValueChange={(v) => setMonth(parseInt(v ?? '1'))}>
+              <SelectTrigger className="w-full">
+                <span className="flex flex-1 text-left text-sm">Tháng {month}</span>
+              </SelectTrigger>
+              <SelectContent>
+                {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
+                  <SelectItem key={m} value={m.toString()}>Tháng {m}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Năm</Label>
+            <Select value={year.toString()} onValueChange={(v) => setYear(parseInt(v ?? String(now.getFullYear())))}>
+              <SelectTrigger className="w-full">
+                <span className="flex flex-1 text-left text-sm">{year}</span>
+              </SelectTrigger>
+              <SelectContent>
+                {years.map((y) => (
+                  <SelectItem key={y} value={y.toString()}>{y}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button className="gap-1.5 w-full sm:w-auto" onClick={handleExport}>
+            <Download className="h-4 w-4" />
+            Xuất Excel
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }

@@ -2,12 +2,10 @@ import { createClient } from '@/lib/supabase/server'
 import { Button } from '@/components/ui/button'
 import { Plus, FileText } from 'lucide-react'
 import Link from 'next/link'
-import { Invoice, Room } from '@/types/database'
 import { PrintButton } from './_components/print-button'
 import { InvoiceList } from './_components/invoice-list'
 import { ExcelExportButton } from './_components/excel-export-button'
-
-type InvoiceWithRoom = Invoice & { room: Pick<Room, 'name' | 'floor'> | null }
+import { InvoiceWithRoom } from './_utils'
 
 export default async function InvoicesPage() {
   const supabase = await createClient()
