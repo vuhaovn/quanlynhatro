@@ -12,6 +12,8 @@ function roomLabel(room: UnpaidInvoice['room']) {
   return room.floor ? `Khu ${room.floor} · ${room.name}` : room.name
 }
 
+function fmt(v: number) { return v.toLocaleString('vi-VN') }
+
 export default async function DashboardPage() {
   const supabase = await createClient()
 
@@ -25,7 +27,7 @@ export default async function DashboardPage() {
       .order('month', { ascending: false }),
     supabase
       .from('invoices')
-      .select('month, year, electric_total, water_total, total_amount'),
+      .select('month, year, electric_total, water_total, total_amount, is_paid, room:rooms(floor)'),
   ])
 
   const rooms = (roomsRes.data ?? []) as Room[]
@@ -35,9 +37,19 @@ export default async function DashboardPage() {
   const rentedRooms = rooms.filter((r) => r.status === 'rented').length
   const emptyRooms = totalRooms - rentedRooms
 
+  const allInvoices = (chartRes.data ?? []) as unknown as {
+    month: number
+    year: number
+    electric_total: number
+    water_total: number
+    total_amount: number
+    is_paid: boolean
+    room: { floor: number | null } | null
+  }[]
+
   // Aggregate invoice data by month/year for chart
   const statsMap: Record<string, MonthStat> = {}
-  for (const inv of (chartRes.data ?? []) as { month: number; year: number; electric_total: number; water_total: number; total_amount: number }[]) {
+  for (const inv of allInvoices) {
     const key = `${inv.year}-${inv.month}`
     if (!statsMap[key]) statsMap[key] = { month: inv.month, year: inv.year, electric: 0, water: 0, total: 0 }
     statsMap[key].electric += inv.electric_total
@@ -45,6 +57,30 @@ export default async function DashboardPage() {
     statsMap[key].total += inv.total_amount
   }
   const chartData = Object.values(statsMap).sort((a, b) => a.year - b.year || a.month - b.month)
+
+  // Tháng gần nhất có hóa đơn → bảng "Theo khu"
+  let latest: { month: number; year: number } | null = null
+  for (const inv of allInvoices) {
+    if (!latest || inv.year > latest.year || (inv.year === latest.year && inv.month > latest.month)) {
+      latest = { month: inv.month, year: inv.year }
+    }
+  }
+  type ZoneRow = { zone: number | null; electric: number; water: number; unpaid: number; total: number }
+  const zoneMap: Record<string, ZoneRow> = {}
+  if (latest) {
+    for (const inv of allInvoices) {
+      if (inv.month !== latest.month || inv.year !== latest.year) continue
+      const zone = inv.room?.floor ?? null
+      const key = String(zone ?? 'x')
+      if (!zoneMap[key]) zoneMap[key] = { zone, electric: 0, water: 0, unpaid: 0, total: 0 }
+      const z = zoneMap[key]
+      z.electric += inv.electric_total
+      z.water    += inv.water_total
+      z.total    += inv.total_amount
+      if (!inv.is_paid) z.unpaid += inv.total_amount
+    }
+  }
+  const zoneRows = Object.values(zoneMap).sort((a, b) => (a.zone ?? 0) - (b.zone ?? 0))
 
   return (
     <div className="space-y-6">
@@ -105,6 +141,65 @@ export default async function DashboardPage() {
         <Card className="p-4">
           <StatsChart data={chartData} />
         </Card>
+      )}
+
+      {/* Zone summary — latest month */}
+      {latest && zoneRows.length > 0 && (
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+              Theo khu — Tháng {latest.month}/{latest.year}
+            </h2>
+            <Link href="/statistics" className="text-xs text-primary flex items-center gap-0.5 hover:underline">
+              Thống kê <ChevronRight className="h-3 w-3" />
+            </Link>
+          </div>
+          <Card className="overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b bg-muted/40 text-muted-foreground">
+                    <th className="text-left px-4 py-2 font-medium">Khu</th>
+                    <th className="text-right px-3 py-2 font-medium">Điện</th>
+                    <th className="text-right px-3 py-2 font-medium">Nước</th>
+                    <th className="text-right px-3 py-2 font-medium">Chưa thu</th>
+                    <th className="text-right px-4 py-2 font-medium">Tổng</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {zoneRows.map((z) => (
+                    <tr key={z.zone ?? 'x'} className="border-b last:border-0">
+                      <td className="px-4 py-2.5 font-medium">{z.zone != null ? `Khu ${z.zone}` : 'Khác'}</td>
+                      <td className="text-right px-3 py-2.5 tabular-nums text-amber-600">{fmt(z.electric)}</td>
+                      <td className="text-right px-3 py-2.5 tabular-nums text-blue-600">{fmt(z.water)}</td>
+                      <td className="text-right px-3 py-2.5 tabular-nums text-orange-600">
+                        {z.unpaid > 0 ? fmt(z.unpaid) : '—'}
+                      </td>
+                      <td className="text-right px-4 py-2.5 tabular-nums font-semibold">{fmt(z.total)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr className="border-t bg-muted/30 font-semibold">
+                    <td className="px-4 py-2.5">Tổng cộng</td>
+                    <td className="text-right px-3 py-2.5 tabular-nums text-amber-600">
+                      {fmt(zoneRows.reduce((s, z) => s + z.electric, 0))}
+                    </td>
+                    <td className="text-right px-3 py-2.5 tabular-nums text-blue-600">
+                      {fmt(zoneRows.reduce((s, z) => s + z.water, 0))}
+                    </td>
+                    <td className="text-right px-3 py-2.5 tabular-nums text-orange-600">
+                      {fmt(zoneRows.reduce((s, z) => s + z.unpaid, 0))}
+                    </td>
+                    <td className="text-right px-4 py-2.5 tabular-nums">
+                      {fmt(zoneRows.reduce((s, z) => s + z.total, 0))}
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </Card>
+        </div>
       )}
 
       {/* Quick actions */}

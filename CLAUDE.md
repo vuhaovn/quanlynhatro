@@ -85,19 +85,23 @@
 - **Xuất Excel** (`ExcelExportButton`): nút → dialog chọn tháng/năm → xuất `.xlsx`
   - Dữ liệu giữ nguyên số (không `fmt()`), dùng `cell.z = '#,##0'` để format hiển thị trong Excel
   - Dùng generated columns (`electric_total`, `water_total`, `total_amount`) thay vì tính lại
+  - **Chia theo khu**: sheet "Tổng hợp" (mỗi khu 1 dòng: số HĐ, tiền phòng, kWh, điện, m³, nước, rác, mạng, tổng) + mỗi khu 1 sheet chi tiết riêng, mỗi sheet có dòng TỔNG CỘNG
   - CSS class `invoice-slip` (**148mm** height) + `invoice-pair` (page-break)
   - `invoice-cut` class = `height:0; border-top: 1px dashed` — cut line giữa 2 slip, không thêm chiều cao
   - Page dùng `<style>` tag inline để override body/main padding khi in
   - **QR code** in bên phải (cột riêng, `width: 115px screen / 62mm print`), bảng phí bên trái
 - **Dashboard** hiển thị bar chart (`StatsChart`) Điện/Nước/Tổng theo tháng — tất cả năm, có year selector
+  - Kèm bảng **"Theo khu — tháng gần nhất có hóa đơn"**: Khu / Điện / Nước / Chưa thu / Tổng + footer, link sang /statistics
 - Đánh dấu đã thu / chưa thu
 
 ### 3.4 Thống Kê (`/statistics`)
 - **Year selector** — pill buttons, đồng bộ toàn bộ trang
 - **4 summary cards**: Đã thu (green) · Chưa thu (orange) · Tổng kWh (amber) · Tổng m³ (blue)
 - **Bar chart** (`StatsChart` controlled mode) — Điện/Nước/Tổng theo 12 tháng của năm đang chọn
+- **Bảng theo khu** — mỗi khu 1 dòng: HĐ / Điện (+kWh) / Nước (+m³) / Đã thu / Chưa thu / Tổng; footer tổng cộng
+  - Có **Select chọn tháng** trong header card (Cả năm / Tháng 1..12 — chỉ hiện tháng có dữ liệu); mặc định = tháng gần nhất có dữ liệu; `ZoneDetail` aggregate theo năm+tháng+khu, client tự gộp khi xem "Cả năm"; đổi năm → nhảy về tháng gần nhất của năm đó
 - **Bảng chi tiết** — 12 tháng × cột: HĐ / Đã thu / Chưa thu / Tổng; footer tổng cộng
-- Server aggregate toàn bộ invoices → 2 dataset: `MonthStat[]` (chart) + `MonthDetail[]` (cards + bảng)
+- Server aggregate toàn bộ invoices (join `rooms(floor)`) → 3 dataset: `MonthStat[]` (chart) + `MonthDetail[]` (cards + bảng tháng) + `ZoneDetail[]` (bảng khu)
 
 ### 3.5 Cài Đặt
 - Giá điện (đ/kWh), giá nước (đ/m³), tiền rác (đ/tháng), cáp mạng (đ/tháng)
@@ -222,11 +226,11 @@ src/
 │       │       ├── invoice-form.tsx      # Client: bảng Excel-like, bulk create
 │       │       ├── invoice-list.tsx      # Client: group theo tháng, filter tabs, checkbox print
 │       │       ├── print-button.tsx      # Dialog chọn tháng/năm → mở tab print
-│       │       └── excel-export-button.tsx # Dialog chọn tháng/năm → xuất .xlsx
+│       │       └── excel-export-button.tsx # Dialog chọn tháng/năm → xuất .xlsx (sheet Tổng hợp + 1 sheet/khu)
 │       ├── statistics/                   # Thống kê
-│       │   ├── page.tsx                  # Server: aggregate invoices → MonthStat[] + MonthDetail[]
+│       │   ├── page.tsx                  # Server: aggregate invoices → MonthStat[] + MonthDetail[] + ZoneDetail[]
 │       │   └── _components/
-│       │       └── statistics-view.tsx   # Client: year selector, cards, chart, bảng chi tiết
+│       │       └── statistics-view.tsx   # Client: year selector, cards, chart, bảng theo khu (select tháng), bảng chi tiết
 │       └── settings/                     # Cài đặt
 │           ├── page.tsx
 │           ├── settings-form.tsx         # Giá + bank info + QR upload
@@ -253,6 +257,7 @@ src/
 
 ### Supabase
 - Client **không typed** với Database generic (tránh lỗi `never`) — cast kết quả thủ công: `data as Room[]`
+- Query có **join** (vd `room:rooms(floor)`) phải cast qua `as unknown as {...}[]` — cast thẳng sẽ lỗi type mismatch
 - Zod v4: dùng `.issues` không phải `.errors` trên ZodError
 - Generated columns (`electric_total`, `water_total`, `total_amount`) — loại khỏi Insert type
 - Settings dùng `upsert` với `onConflict: 'user_id'`
@@ -276,6 +281,7 @@ src/
 - **Base UI Select**: `SelectValue` render raw value (UUID) — luôn dùng custom `<span>` trong `SelectTrigger` thay vì `<SelectValue>`
 - **Base UI Select `onValueChange`**: `v` có type `string | null` — luôn dùng `(!v || v === 'none') ? '' : v` thay vì `v === 'none' ? '' : v` để tránh lỗi TypeScript
 - **Format VND**: dùng `formatVND()` helper (strip non-digits → thêm dấu phẩy mỗi 3 số) cho tất cả input tiền
+- **Hiển thị tiền**: luôn hiện số chính xác `toLocaleString('vi-VN')` — KHÔNG rút gọn kiểu `1.2tr`/`350k` (user yêu cầu khớp với số trong Excel). Ngoại lệ duy nhất: nhãn trục Y của chart (`fmtY` trong stats-chart) vì không đủ chỗ, tooltip vẫn hiện số đầy đủ
 - **iOS safe area**: bottom nav có `paddingBottom: env(safe-area-inset-bottom)`, main content có `calc(5rem + env(safe-area-inset-bottom))`
 - **Print đơn lẻ**: `@page { margin: 0 }` + `body { padding: 12mm }` (globals.css)
 - **Print hàng loạt**: page tự override bằng `<style>` tag inline — override `body/main padding`, `main > div max-width`
