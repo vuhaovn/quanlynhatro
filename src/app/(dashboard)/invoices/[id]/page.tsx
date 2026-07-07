@@ -1,9 +1,8 @@
 import { createClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
-import { Separator } from '@/components/ui/separator'
 import { ChevronLeft } from 'lucide-react'
 import Link from 'next/link'
-import { Invoice, Room, Tenant, Settings } from '@/types/database'
+import { Invoice, Room, Tenant } from '@/types/database'
 import { InvoiceActions } from './invoice-actions'
 
 function fmt(n: number) { return n.toLocaleString('vi-VN') }
@@ -12,14 +11,10 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
   const { id } = await params
   const supabase = await createClient()
 
-  const [invoiceRes, settingsRes] = await Promise.all([
-    supabase.from('invoices').select('*').eq('id', id).single(),
-    supabase.from('settings').select('*').single(),
-  ])
+  const invoiceRes = await supabase.from('invoices').select('*').eq('id', id).single()
 
   if (!invoiceRes.data) notFound()
   const invoice = invoiceRes.data as Invoice
-  const settings = settingsRes.data as Settings | null
 
   const [roomRes, tenantRes] = await Promise.all([
     supabase.from('rooms').select('*').eq('id', invoice.room_id).single(),
@@ -156,92 +151,6 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
         <InvoiceActions invoice={invoice} />
       </div>
 
-      {/* ── Print view ── */}
-      <div className="hidden print:block p-6 text-sm font-['Arial',sans-serif]">
-        <div className="text-center mb-6">
-          <h1 className="text-xl font-bold uppercase">Hóa Đơn Tiền Nhà</h1>
-          <p className="text-gray-600">Tháng {invoice.month} năm {invoice.year}</p>
-        </div>
-
-        <div className="grid grid-cols-2 gap-4 mb-4 text-lg">
-          <div>
-            <p><strong>Phòng:</strong> {roomLabel}</p>
-            <p><strong>Người thuê:</strong> {tenant?.full_name}</p>
-            <p><strong>Điện thoại:</strong> {tenant?.phone}</p>
-          </div>
-          {!settings?.qr_image_url && (
-            <div className="text-right">
-              {settings?.bank_name && <p><strong>Ngân hàng:</strong> {settings.bank_name}</p>}
-              {settings?.bank_account && <p><strong>STK:</strong> {settings.bank_account}</p>}
-              {settings?.bank_owner && <p><strong>Chủ TK:</strong> {settings.bank_owner}</p>}
-            </div>
-          )}
-        </div>
-
-        <Separator className="my-4" />
-
-        <table className="w-full text-lg mb-4">
-          <tbody>
-            <tr>
-              <td className="py-1">Tiền phòng</td>
-              <td className="text-right">{fmt(invoice.room_price)}đ</td>
-            </tr>
-            <tr>
-              <td className="py-1">
-                Tiền điện ({invoice.electric_start} → {invoice.electric_end} = {electricUsage} kWh × {fmt(invoice.electric_price)}đ)
-              </td>
-              <td className="text-right">{fmt(invoice.electric_total)}đ</td>
-            </tr>
-            <tr>
-              <td className="py-1">
-                Tiền nước ({invoice.water_start} → {invoice.water_end} = {waterUsage} m³ × {fmt(invoice.water_price)}đ)
-              </td>
-              <td className="text-right">{fmt(invoice.water_total)}đ</td>
-            </tr>
-            {invoice.garbage_fee > 0 && (
-              <tr>
-                <td className="py-1">Tiền rác</td>
-                <td className="text-right">{fmt(invoice.garbage_fee)}đ</td>
-              </tr>
-            )}
-            {invoice.internet_fee > 0 && (
-              <tr>
-                <td className="py-1">Cáp mạng</td>
-                <td className="text-right">{fmt(invoice.internet_fee)}đ</td>
-              </tr>
-            )}
-          </tbody>
-          <tfoot>
-            <tr className="border-t font-bold text-lg">
-              <td className="pt-2">TỔNG CỘNG</td>
-              <td className="pt-2 text-right">{fmt(invoice.total_amount)}đ</td>
-            </tr>
-          </tfoot>
-        </table>
-
-        {settings?.qr_image_url && (
-          <div style={{ display: 'flex', gap: '20px', alignItems: 'center', marginTop: '16px', borderTop: '1px solid #e5e7eb', paddingTop: '14px' }}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={settings.qr_image_url}
-              alt="QR"
-              style={{ width: '150px', height: '150px', objectFit: 'contain', flexShrink: 0 }}
-            />
-            <div style={{ fontSize: '14px', lineHeight: '1.7' }}>
-              <p style={{ fontWeight: 'bold', marginBottom: '4px' }}>Chuyển khoản:</p>
-              {settings.bank_name && <p>{settings.bank_name}</p>}
-              {settings.bank_account && <p>STK: <strong>{settings.bank_account}</strong></p>}
-              {settings.bank_owner && <p>{settings.bank_owner}</p>}
-            </div>
-          </div>
-        )}
-
-        {invoice.note && <p className="text-gray-600 italic mb-4 mt-3">Ghi chú: {invoice.note}</p>}
-
-        <p className="text-center text-gray-500 text-sm mt-8">
-          Ngày in: {new Date().toLocaleDateString('vi-VN')}
-        </p>
-      </div>
     </>
   )
 }

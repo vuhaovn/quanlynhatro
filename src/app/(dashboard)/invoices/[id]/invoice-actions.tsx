@@ -85,7 +85,7 @@ export function InvoiceActions({ invoice }: Pick<Props, 'invoice'>) {
         <Button
           variant="outline"
           className="flex-1 gap-2"
-          onClick={() => window.print()}
+          onClick={() => window.open(`/invoices/print?ids=${invoice.id}`, '_blank')}
         >
           <Printer className="h-4 w-4" />
           In
