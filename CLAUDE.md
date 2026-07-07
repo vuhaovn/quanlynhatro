@@ -14,7 +14,8 @@
 - Backend & DB: Supabase (PostgreSQL + Auth + Storage)
 - Mobile first (bottom nav mobile, sidebar desktop)
 - `nextjs-toploader` cho navigation loading indicator
-- `xlsx` để parse file Excel khi import
+- `xlsx` để parse/xuất file Excel
+- `recharts` cho biểu đồ thống kê
 
 ---
 
@@ -75,11 +76,12 @@
 - **Danh sách** (`/invoices`): group theo tháng/năm, tháng mới nhất mở sẵn, các tháng cũ collapsed
   - Filter tabs: Tất cả / Chưa thu / Đã thu
   - Mỗi group header hiện: số phòng, badge "X chưa thu", tổng tiền tháng
-- In hóa đơn đơn lẻ (`window.print()`) — `@page { margin: 0 }` + `body { padding: 12mm }`
-- **In hàng loạt**: `/invoices/print?month=X&year=Y` — 2 hóa đơn/tờ A4, tự động mở dialog in
-  - Nút "In tháng" trên trang danh sách → dialog chọn tháng/năm → mở tab mới
-- **In hóa đơn đã chọn**: checkbox mode trong `invoice-list` → sticky bottom bar → mở `/invoices/print?ids=id1,id2,...`
-  - Print page nhận `?ids=` thì fetch theo `.in("id", [...])`, nhận `?month=&year=` thì fetch theo tháng
+- **In hóa đơn** — một print page duy nhất `/invoices/print`, 2 hóa đơn/tờ A4
+  - `?month=X&year=Y` → in tất cả hóa đơn tháng đó
+  - `?ids=id1,id2,...` → in các hóa đơn được chọn (fetch `.in("id", [...])`)
+  - Nút "In" trên `/invoices/[id]` mở `/invoices/print?ids={id}` — không còn `window.print()` riêng
+  - Nút "In tháng" → dialog chọn tháng/năm → mở tab mới
+  - Checkbox mode trong danh sách → sticky bottom bar → mở print với `?ids=`
 - **Xuất Excel** (`ExcelExportButton`): nút → dialog chọn tháng/năm → xuất `.xlsx`
   - Dữ liệu giữ nguyên số (không `fmt()`), dùng `cell.z = '#,##0'` để format hiển thị trong Excel
   - Dùng generated columns (`electric_total`, `water_total`, `total_amount`) thay vì tính lại
@@ -87,10 +89,17 @@
   - `invoice-cut` class = `height:0; border-top: 1px dashed` — cut line giữa 2 slip, không thêm chiều cao
   - Page dùng `<style>` tag inline để override body/main padding khi in
   - **QR code** in bên phải (cột riêng, `width: 115px screen / 62mm print`), bảng phí bên trái
-- **Thống kê điện/nước tháng hiện tại** trên dashboard: sum `electric_total` + `water_total` từ tất cả hóa đơn tháng hiện tại — hiện khi đã có ít nhất 1 hóa đơn
+- **Dashboard** hiển thị bar chart (`StatsChart`) Điện/Nước/Tổng theo tháng — tất cả năm, có year selector
 - Đánh dấu đã thu / chưa thu
 
-### 3.4 Cài Đặt
+### 3.4 Thống Kê (`/statistics`)
+- **Year selector** — pill buttons, đồng bộ toàn bộ trang
+- **4 summary cards**: Đã thu (green) · Chưa thu (orange) · Tổng kWh (amber) · Tổng m³ (blue)
+- **Bar chart** (`StatsChart` controlled mode) — Điện/Nước/Tổng theo 12 tháng của năm đang chọn
+- **Bảng chi tiết** — 12 tháng × cột: HĐ / Đã thu / Chưa thu / Tổng; footer tổng cộng
+- Server aggregate toàn bộ invoices → 2 dataset: `MonthStat[]` (chart) + `MonthDetail[]` (cards + bảng)
+
+### 3.5 Cài Đặt
 - Giá điện (đ/kWh), giá nước (đ/m³), tiền rác (đ/tháng), cáp mạng (đ/tháng)
 - Thông tin ngân hàng (tên NH, số TK, chủ TK)
 - **QR code thanh toán**: upload ảnh → lưu vào Supabase Storage bucket `qr-images`, URL lưu vào `settings.qr_image_url`
@@ -99,7 +108,7 @@
   - Tự động in trên hóa đơn (đơn lẻ + hàng loạt) nếu có URL
 - Mỗi user có 1 row settings riêng (upsert theo `user_id`)
 
-### 3.5 Auth
+### 3.6 Auth
 - `/login` — đăng nhập bằng username + password
 - `/register` — đăng ký username + password + confirm, tự tạo settings row mặc định
 - `/register` và `/login` được whitelist trong middleware (không redirect)
@@ -175,6 +184,8 @@ src/
 │       ├── layout.tsx                    # Chỉ render <DashboardShell> (server)
 │       ├── loading.tsx
 │       ├── page.tsx                      # Dashboard / Tổng quan
+│       ├── _components/
+│       │   └── stats-chart.tsx           # Client: recharts bar chart, controlled/uncontrolled year
 │       ├── rooms/                        # Quản lý phòng
 │       │   ├── loading.tsx
 │       │   ├── page.tsx                  # Grid 3 cột, group theo Khu
@@ -201,8 +212,8 @@ src/
 │       │   ├── new/
 │       │   │   └── page.tsx             # Server: fetch rooms+tenants+settings → InvoiceForm
 │       │   ├── [id]/
-│       │   │   ├── page.tsx             # Chi tiết + print view (QR, breakdown)
-│       │   │   └── invoice-actions.tsx  # Client: đánh dấu thu/chưa thu, xóa
+│       │   │   ├── page.tsx             # Chi tiết hóa đơn (không có print view riêng)
+│       │   │   └── invoice-actions.tsx  # Client: đánh dấu thu/chưa thu, xóa, nút In → print?ids=
 │       │   ├── print/                    # In hàng loạt (?month=&year=)
 │       │   │   ├── page.tsx             # Server: 2 hóa đơn/A4, QR bên phải
 │       │   │   └── print-trigger.tsx    # Client, auto window.print()
@@ -212,6 +223,10 @@ src/
 │       │       ├── invoice-list.tsx      # Client: group theo tháng, filter tabs, checkbox print
 │       │       ├── print-button.tsx      # Dialog chọn tháng/năm → mở tab print
 │       │       └── excel-export-button.tsx # Dialog chọn tháng/năm → xuất .xlsx
+│       ├── statistics/                   # Thống kê
+│       │   ├── page.tsx                  # Server: aggregate invoices → MonthStat[] + MonthDetail[]
+│       │   └── _components/
+│       │       └── statistics-view.tsx   # Client: year selector, cards, chart, bảng chi tiết
 │       └── settings/                     # Cài đặt
 │           ├── page.tsx
 │           ├── settings-form.tsx         # Giá + bank info + QR upload
@@ -286,6 +301,11 @@ src/
   USING (bucket_id = 'qr-images' AND auth.uid()::text = (storage.foldername(name))[1])
   ```
 - URL lưu vào `settings.qr_image_url` qua upsert; bust cache bằng `?t={Date.now()}` khi preview
+
+### StatsChart (`_components/stats-chart.tsx`)
+- **Uncontrolled** (dashboard): không truyền `year`/`onYearChange` → tự quản lý year selector bên trong
+- **Controlled** (statistics): truyền `year` + `onYearChange` → ẩn year pills bên trong, để parent đồng bộ với cards và bảng
+- Export `type MonthStat` — dùng chung cho cả dashboard và statistics page
 
 ### Invoices — shared utils
 - `invoices/_utils.ts` export `type InvoiceWithRoom` và `sortInvoices<T>()` — dùng chung cho `invoice-list`, `print/page`, `excel-export-button`, `page.tsx`
