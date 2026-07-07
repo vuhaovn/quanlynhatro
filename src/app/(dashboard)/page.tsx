@@ -1,8 +1,9 @@
 import { createClient } from '@/lib/supabase/server'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { DoorOpen, Users, FileText, AlertCircle, ChevronRight, Zap, Droplets } from 'lucide-react'
+import { DoorOpen, Users, FileText, AlertCircle, ChevronRight } from 'lucide-react'
 import Link from 'next/link'
 import { Room, Invoice } from '@/types/database'
+import { StatsChart, MonthStat } from './_components/stats-chart'
 
 type UnpaidInvoice = Invoice & { room: Pick<Room, 'name' | 'floor'> | null }
 
@@ -13,11 +14,8 @@ function roomLabel(room: UnpaidInvoice['room']) {
 
 export default async function DashboardPage() {
   const supabase = await createClient()
-  const now = new Date()
-  const currentMonth = now.getMonth() + 1
-  const currentYear = now.getFullYear()
 
-  const [roomsRes, invoicesRes, statsRes] = await Promise.all([
+  const [roomsRes, invoicesRes, chartRes] = await Promise.all([
     supabase.from('rooms').select('*'),
     supabase
       .from('invoices')
@@ -27,20 +25,26 @@ export default async function DashboardPage() {
       .order('month', { ascending: false }),
     supabase
       .from('invoices')
-      .select('electric_total, water_total')
-      .eq('month', currentMonth)
-      .eq('year', currentYear),
+      .select('month, year, electric_total, water_total, total_amount'),
   ])
 
   const rooms = (roomsRes.data ?? []) as Room[]
   const unpaidInvoices = (invoicesRes.data ?? []) as UnpaidInvoice[]
-  const monthlyStats = (statsRes.data ?? []) as { electric_total: number; water_total: number }[]
 
   const totalRooms = rooms.length
   const rentedRooms = rooms.filter((r) => r.status === 'rented').length
   const emptyRooms = totalRooms - rentedRooms
-  const totalElectric = monthlyStats.reduce((sum, inv) => sum + (inv.electric_total ?? 0), 0)
-  const totalWater = monthlyStats.reduce((sum, inv) => sum + (inv.water_total ?? 0), 0)
+
+  // Aggregate invoice data by month/year for chart
+  const statsMap: Record<string, MonthStat> = {}
+  for (const inv of (chartRes.data ?? []) as { month: number; year: number; electric_total: number; water_total: number; total_amount: number }[]) {
+    const key = `${inv.year}-${inv.month}`
+    if (!statsMap[key]) statsMap[key] = { month: inv.month, year: inv.year, electric: 0, water: 0, total: 0 }
+    statsMap[key].electric += inv.electric_total
+    statsMap[key].water += inv.water_total
+    statsMap[key].total += inv.total_amount
+  }
+  const chartData = Object.values(statsMap).sort((a, b) => a.year - b.year || a.month - b.month)
 
   return (
     <div className="space-y-6">
@@ -96,39 +100,11 @@ export default async function DashboardPage() {
         </Link>
       </div>
 
-      {/* Monthly electric & water stats */}
-      {monthlyStats.length > 0 && (
-        <div>
-          <h2 className="text-sm font-semibold mb-3 text-muted-foreground uppercase tracking-wide">
-            Điện · Nước tháng {currentMonth}/{currentYear}
-          </h2>
-          <div className="grid grid-cols-2 gap-3">
-            <Card>
-              <CardHeader className="pb-1 pt-4 px-4">
-                <CardTitle className="text-xs text-amber-600 font-medium flex items-center gap-1.5">
-                  <Zap className="h-3.5 w-3.5" />
-                  Tiền điện
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="px-4 pb-4">
-                <p className="text-lg font-bold text-amber-600">{totalElectric.toLocaleString('vi-VN')}đ</p>
-                <p className="text-xs text-muted-foreground">{monthlyStats.length} hóa đơn</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="pb-1 pt-4 px-4">
-                <CardTitle className="text-xs text-blue-600 font-medium flex items-center gap-1.5">
-                  <Droplets className="h-3.5 w-3.5" />
-                  Tiền nước
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="px-4 pb-4">
-                <p className="text-lg font-bold text-blue-600">{totalWater.toLocaleString('vi-VN')}đ</p>
-                <p className="text-xs text-muted-foreground">{monthlyStats.length} hóa đơn</p>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
+      {/* Stats chart */}
+      {chartData.length > 0 && (
+        <Card className="p-4">
+          <StatsChart data={chartData} />
+        </Card>
       )}
 
       {/* Quick actions */}

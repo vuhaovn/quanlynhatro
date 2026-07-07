@@ -1,35 +1,60 @@
 import { createClient } from '@/lib/supabase/server'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { BarChart2 } from 'lucide-react'
-import { Invoice } from '@/types/database'
+import { MonthStat } from '../_components/stats-chart'
+import { StatisticsView, MonthDetail } from './_components/statistics-view'
 
 export default async function StatisticsPage() {
   const supabase = await createClient()
-  const now = new Date()
-  const currentYear = now.getFullYear()
-  const currentMonth = now.getMonth() + 1
 
   const { data } = await supabase
     .from('invoices')
-    .select('*')
-    .eq('is_paid', true)
+    .select('month, year, electric_total, water_total, total_amount, is_paid, electric_start, electric_end, water_start, water_end')
 
-  const invoices = (data ?? []) as Invoice[]
+  const invoices = (data ?? []) as {
+    month: number
+    year: number
+    electric_total: number
+    water_total: number
+    total_amount: number
+    is_paid: boolean
+    electric_start: number
+    electric_end: number
+    water_start: number
+    water_end: number
+  }[]
 
-  const monthlyRevenue = invoices
-    .filter((i) => i.year === currentYear && i.month === currentMonth)
-    .reduce((sum, i) => sum + i.total_amount, 0)
-
-  const yearlyRevenue = invoices
-    .filter((i) => i.year === currentYear)
-    .reduce((sum, i) => sum + i.total_amount, 0)
-
-  const monthlyByMonth: Record<number, number> = {}
-  for (let m = 1; m <= 12; m++) {
-    monthlyByMonth[m] = invoices
-      .filter((i) => i.year === currentYear && i.month === m)
-      .reduce((sum, i) => sum + i.total_amount, 0)
+  // Aggregate for chart (MonthStat)
+  const chartMap: Record<string, MonthStat> = {}
+  for (const inv of invoices) {
+    const key = `${inv.year}-${inv.month}`
+    if (!chartMap[key]) chartMap[key] = { month: inv.month, year: inv.year, electric: 0, water: 0, total: 0 }
+    chartMap[key].electric += inv.electric_total
+    chartMap[key].water   += inv.water_total
+    chartMap[key].total   += inv.total_amount
   }
+  const chartData = Object.values(chartMap).sort((a, b) => a.year - b.year || a.month - b.month)
+
+  // Aggregate for detail table (MonthDetail)
+  const detailMap: Record<string, MonthDetail> = {}
+  for (const inv of invoices) {
+    const key = `${inv.year}-${inv.month}`
+    if (!detailMap[key]) detailMap[key] = {
+      month: inv.month, year: inv.year,
+      count: 0, paidCount: 0, unpaidCount: 0,
+      paidTotal: 0, unpaidTotal: 0,
+      electric: 0, water: 0, total: 0, kwh: 0, m3: 0,
+    }
+    const d = detailMap[key]
+    d.count++
+    d.electric += inv.electric_total
+    d.water    += inv.water_total
+    d.total    += inv.total_amount
+    d.kwh      += Math.max(0, inv.electric_end - inv.electric_start)
+    d.m3       += Math.max(0, inv.water_end - inv.water_start)
+    if (inv.is_paid) { d.paidCount++;   d.paidTotal   += inv.total_amount }
+    else             { d.unpaidCount++; d.unpaidTotal += inv.total_amount }
+  }
+  const details = Object.values(detailMap).sort((a, b) => a.year - b.year || a.month - b.month)
 
   return (
     <div className="space-y-4">
@@ -38,52 +63,11 @@ export default async function StatisticsPage() {
         <h1 className="text-xl font-bold">Thống kê</h1>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
-        <Card>
-          <CardHeader className="pb-1 pt-4 px-4">
-            <CardTitle className="text-xs text-muted-foreground">Tháng {currentMonth}/{currentYear}</CardTitle>
-          </CardHeader>
-          <CardContent className="px-4 pb-4">
-            <p className="text-xl font-bold text-green-600">{monthlyRevenue.toLocaleString('vi-VN')}đ</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-1 pt-4 px-4">
-            <CardTitle className="text-xs text-muted-foreground">Cả năm {currentYear}</CardTitle>
-          </CardHeader>
-          <CardContent className="px-4 pb-4">
-            <p className="text-xl font-bold text-blue-600">{yearlyRevenue.toLocaleString('vi-VN')}đ</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      <Card>
-        <CardHeader className="px-4 pt-4 pb-2">
-          <CardTitle className="text-sm">Doanh thu theo tháng — {currentYear}</CardTitle>
-        </CardHeader>
-        <CardContent className="px-4 pb-4">
-          <div className="space-y-2">
-            {Object.entries(monthlyByMonth).map(([month, amount]) => {
-              const max = Math.max(...Object.values(monthlyByMonth), 1)
-              const pct = (amount / max) * 100
-              return (
-                <div key={month} className="flex items-center gap-3">
-                  <span className="text-xs text-muted-foreground w-8">T{month}</span>
-                  <div className="flex-1 bg-gray-100 rounded-full h-2">
-                    <div
-                      className="bg-primary rounded-full h-2 transition-all"
-                      style={{ width: `${pct}%` }}
-                    />
-                  </div>
-                  <span className="text-xs font-medium w-24 text-right">
-                    {amount > 0 ? `${(amount / 1000).toFixed(0)}k` : '—'}
-                  </span>
-                </div>
-              )
-            })}
-          </div>
-        </CardContent>
-      </Card>
+      {invoices.length === 0 ? (
+        <p className="text-sm text-muted-foreground text-center py-16">Chưa có dữ liệu hóa đơn</p>
+      ) : (
+        <StatisticsView chartData={chartData} details={details} />
+      )}
     </div>
   )
 }
