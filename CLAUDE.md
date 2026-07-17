@@ -256,6 +256,7 @@ src/
 ## 6. CÁC LƯU Ý KỸ THUẬT QUAN TRỌNG
 
 ### Supabase
+- **Keep-alive chống pause free tier**: Supabase pause project sau 7 ngày không có hoạt động DB. Giải pháp: route `/api/keep-alive` (query nhẹ `settings` qua REST + anon key) + Vercel Cron trong `vercel.json` gọi mỗi ngày lúc 0h UTC. Middleware matcher đã loại trừ `/api` để cron không bị redirect về `/login`.
 - Client **không typed** với Database generic (tránh lỗi `never`) — cast kết quả thủ công: `data as Room[]`
 - Query có **join** (vd `room:rooms(floor)`) phải cast qua `as unknown as {...}[]` — cast thẳng sẽ lỗi type mismatch
 - Zod v4: dùng `.issues` không phải `.errors` trên ZodError
